@@ -1,4 +1,3 @@
-
 # =============================================================================
 # --- CONFIGURATION (Partie à modifier) ---
 # =============================================================================
@@ -23,20 +22,44 @@ $extensionsToInclude = @(
     "Dockerfile", "*.yml", "*.yaml"                   # Docker & CI/CD
 )
 
-# Dossiers dont le CONTENU doit être EXCLU (leur existence sera listée)
-$foldersToExcludeContent = @(
-    "node_modules",
-    ".next",
-    "prisma\migrations"
-)
-
 # Dossiers/fichiers à EXCLURE COMPLÈTEMENT de l'export
 $pathsToExcludeCompletely = @(
-    ".git", ".vscode", "dist", "build", "__pycache__",
-    ".DS_Store", "*.log", "*.tmp",
-    # Fichiers sensibles ou de lock
-    ".env*", "pnpm-lock.yaml", "yarn.lock", "package-lock.json",
-    # IMPORTANT : Exclure le dossier d'export lui-même pour éviter les boucles
+    # --- Données utilisateur et fichiers générés par l'application ---
+    "uploads",
+    "archives",
+
+    # --- Répertoires de dépendances et de build (très volumineux) ---
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+
+    # --- Contrôle de version et configuration de l'IDE ---
+    ".git",
+    ".vscode",
+    ".idea",
+
+    # --- Fichiers générés par les outils et caches ---
+    "__pycache__",
+    "prisma\migrations",
+    "playwright-report",
+    "test-results",
+    ".eslintcache",
+    "coverage",
+
+    # --- Fichiers système et temporaires ---
+    ".DS_Store",
+    "*.log",
+    "*.tmp",
+    "*.db",
+
+    # --- Fichiers sensibles ou de lock (inutiles pour l'analyse du code) ---
+    ".env*",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "package-lock.json",
+
+    # --- IMPORTANT : Exclure le dossier d'export lui-même pour éviter les boucles ---
     $outputSubfolderName
 )
 
@@ -57,7 +80,6 @@ New-Item -Path $outputDirectory -ItemType Directory -Force -ErrorAction Silently
 
 $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $outputFile = Join-Path -Path $outputDirectory -ChildPath "export_PMP_code_$($timestamp).txt"
-$fullPathPrefixesToExcludeContent = $foldersToExcludeContent | ForEach-Object { Join-Path -Path $projetDirectory -ChildPath $_ }
 
 # --- Exécution ---
 $streamWriter = $null
@@ -68,50 +90,26 @@ try {
     Write-Host "Début de l'exportation du projet '$projetDirectory'..." -ForegroundColor Green
     $streamWriter.WriteLine("--- Export du projet '$($projetDirectory)' | Généré le $(Get-Date) ---")
 
-    # Récupération des fichiers
+    # Récupération des fichiers en excluant directement les dossiers non pertinents pour la performance
     $allFiles = Get-ChildItem -Path $projetDirectory -Recurse -File -Include $extensionsToInclude -Exclude $pathsToExcludeCompletely -ErrorAction SilentlyContinue
-    Write-Host "Analyse de $($allFiles.Count) fichiers pertinents..."
-
-    $includedCount = 0
-    $skippedContentPaths = [System.Collections.Generic.List[string]]::new()
+    $includedCount = $allFiles.Count
+    Write-Host "Analyse et inclusion de $($includedCount) fichier(s) pertinent(s)..."
 
     # Traitement des fichiers
     foreach ($file in $allFiles) {
         $relativePath = $file.FullName.Substring($projetDirectory.Length + 1)
-        $shouldExcludeContent = $false
-        foreach ($prefix in $fullPathPrefixesToExcludeContent) {
-            if ($file.FullName.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-                $shouldExcludeContent = $true
-                break
-            }
-        }
-
-        if ($shouldExcludeContent) {
-            $skippedContentPaths.Add($relativePath)
-        } else {
-            $streamWriter.WriteLine()
-            $streamWriter.WriteLine("====================================================================")
-            $streamWriter.WriteLine("--- Fichier: $relativePath")
-            $streamWriter.WriteLine("====================================================================")
-            $streamWriter.WriteLine()
-            try {
-                $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
-                $streamWriter.WriteLine($content)
-                $includedCount++
-            } catch {
-                $streamWriter.WriteLine("/!\\ ERREUR DE LECTURE : $($_.Exception.Message) /!\\")
-            }
-        }
-    }
-
-    # Ajout du résumé des fichiers au contenu exclu
-    if ($skippedContentPaths.Count -gt 0) {
+        
         $streamWriter.WriteLine()
-        $streamWriter.WriteLine("####################################################################")
-        $streamWriter.WriteLine("# Contenu Exclu (total: $($skippedContentPaths.Count)) - Fichiers listés ci-dessous :")
-        $streamWriter.WriteLine("####################################################################")
+        $streamWriter.WriteLine("====================================================================")
+        $streamWriter.WriteLine("--- Fichier: $relativePath")
+        $streamWriter.WriteLine("====================================================================")
         $streamWriter.WriteLine()
-        $streamWriter.WriteLine(($skippedContentPaths -join "; "))
+        try {
+            $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+            $streamWriter.WriteLine($content)
+        } catch {
+            $streamWriter.WriteLine("/!\\ ERREUR DE LECTURE : $($_.Exception.Message) /!\\")
+        }
     }
 
     $streamWriter.WriteLine()
@@ -121,8 +119,7 @@ try {
     $duration = (Get-Date) - $startTime
     Write-Host "----------------------------------------"
     Write-Host "Exportation terminée en $($duration.TotalSeconds.ToString("F2")) secondes." -ForegroundColor Green
-    Write-Host " - $($includedCount) fichier(s) inclus avec leur contenu."
-    Write-Host " - $($skippedContentPaths.Count) fichier(s) listé(s) (contenu ignoré)."
+    Write-Host " - $($includedCount) fichier(s) ont été inclus avec leur contenu."
     Write-Host "Fichier de sortie : $outputFile"
 
 } catch {

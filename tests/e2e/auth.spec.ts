@@ -25,8 +25,8 @@ test.describe('Authentication', () => {
     // Submit form
     await page.click('button[type="submit"]')
 
-    // Should show error message
-    await expect(page.locator('.error-message')).toBeVisible()
+    // Should show error message (error messages are displayed in red text within error container)
+    await expect(page.locator('.text-red-700')).toBeVisible()
   })
 
   test('should redirect to login when accessing protected route', async ({ page }) => {

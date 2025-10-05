@@ -1,190 +1,285 @@
-# PMP - Photo Management Platform
+# PMP - Publication Management Platform
 
-Une plateforme complète de gestion de photos avec traitement d'images, galerie, calendrier et fonctionnalités de publication.
+Une plateforme complète de gestion de publications avec traitement d'images, organisation et planification.
 
-## Fonctionnalités
+## 🚀 Fonctionnalités
 
-- 📸 **Galerie interactive** - Visualisez et gérez vos photos
-- ✂️ **Recadrage intelligent** - Recadrez vos images avec des outils avancés
-- 📅 **Calendrier intégré** - Organisez vos photos par date
-- 🔄 **Tri automatique** - Classez vos images intelligemment
-- 📝 **Descriptions personnalisées** - Ajoutez des métadonnées à vos photos
-- 🚀 **Publication facilitée** - Publiez vos photos sur les réseaux sociaux
-- 👥 **Interface administrateur** - Gérez utilisateurs et système
-- 🔄 **Traitement en arrière-plan** - Jobs asynchrones avec Redis
+### ✅ Workflow Complet
+- **📸 Galerie** : Upload et gestion des images
+- **✂️ Recadrage** : Outils manuels et automatiques avancés
+- **📝 Description** : Métadonnées complètes (titre, description, tags, alt, caption)
+- **🔄 Tri** : Organisation par drag & drop avec publications
+- **📅 Calendrier** : Planification temporelle avec interface interactive
+- **📦 Export** : Génération automatique de ZIP avec métadonnées
 
-## Architecture
+### ✅ Architecture Technique
+- **🔐 Authentification** : NextAuth.js avec rôles utilisateurs
+- **🗄️ Base de données** : Prisma ORM avec PostgreSQL/SQLite
+- **⚡ Traitement asynchrone** : BullMQ avec worker dédié
+- **🎨 Interface moderne** : Next.js 14 + Tailwind CSS + shadcn/ui
+- **🧪 Tests complets** : Vitest (unitaires) + Playwright (e2e)
 
-- **Frontend** : Next.js 14 avec App Router, TypeScript, Tailwind CSS
-- **Backend** : Next.js API Routes
-- **Base de données** : PostgreSQL avec Prisma ORM
-- **File d'attente** : Redis avec Bull
-- **Worker** : Node.js dédié pour le traitement d'images
-- **Conteneurisation** : Docker et Docker Compose
+## 🏗️ Architecture
 
-## Prérequis
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Next.js App   │    │     Worker      │    │   PostgreSQL    │
+│   (Frontend)    │◄──►│   (BullMQ)      │◄──►│   (Prisma)      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                        │
+         ▼                        ▼
+┌─────────────────┐    ┌─────────────────┐
+│     Redis       │    │     Files       │
+│  (Queue/Cache)  │    │   (Uploads)     │
+└─────────────────┘    └─────────────────┘
+```
 
+## 🛠️ Installation et Démarrage
+
+### Prérequis
 - Node.js 18+
-- Docker et Docker Compose
+- Docker et Docker Compose (recommandé)
 - Git
 
-## Installation
+### Installation Rapide (Docker)
 
-### 1. Cloner le repository
-
+1. **Cloner le projet**
 ```bash
-git clone <repository-url>
-cd pmp
+git clone <votre-repo>
+cd PMP
 ```
 
-### 2. Installer les dépendances
+2. **Démarrer avec Docker Compose**
+```bash
+# Démarrer tous les services
+docker-compose up -d
 
+# Générer la base de données
+docker-compose exec app npm run db:push
+
+# Créer un utilisateur admin
+docker-compose exec app node -e "
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const prisma = new PrismaClient();
+
+async function main() {
+  const hashedPassword = await bcrypt.hash('admin123', 10);
+  await prisma.user.create({
+    data: {
+      email: 'admin@pmp.local',
+      password: hashedPassword,
+      role: 'ADMIN',
+      name: 'Administrateur'
+    }
+  });
+  console.log('Utilisateur admin créé');
+}
+
+main().catch(console.error).finally(() => prisma.$disconnect());
+"
+```
+
+3. **Accéder à l'application**
+- Application : http://localhost:3000
+- Interface admin : http://localhost:3000/admin
+
+### Installation Manuelle
+
+1. **Installer les dépendances**
 ```bash
 npm install
+cd worker && npm install && cd ..
 ```
 
-### 3. Configuration de l'environnement
-
+2. **Configuration de l'environnement**
 ```bash
-cp .env.example .env.local
+cp .env.example .env
+# Éditer .env avec vos paramètres
 ```
 
-Editez `.env.local` avec vos paramètres :
-
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/pmp_db"
-REDIS_URL="redis://localhost:6379"
-NEXTAUTH_SECRET="votre-clé-secrète-générée"
-NEXTAUTH_URL="http://localhost:3000"
-```
-
-### 4. Démarrer les services avec Docker
-
+3. **Démarrer les services**
 ```bash
-docker-compose up -d
-```
-
-Cette commande démarre :
-- L'application Next.js (port 3000)
-- PostgreSQL (port 5432)
-- Redis (port 6379)
-- Le worker de traitement (arrière-plan)
-
-### 5. Configuration de la base de données
-
-```bash
-# Générer le client Prisma
-npm run db:generate
-
-# Appliquer les migrations
+# Base de données
 npm run db:push
 
-# (Optionnel) Ouvrir Prisma Studio
-npm run db:studio
-```
+# Services en arrière-plan
+docker-compose up -d redis postgres
 
-## Développement
-
-### Démarrer en mode développement
-
-```bash
+# Application principale
 npm run dev
+
+# Worker (nouveau terminal)
+npm run worker:dev
 ```
 
-### Construire pour la production
+## 📖 Guide d'Utilisation
 
+### 🔐 Connexion
+- **Utilisateur normal** : Créer un compte ou utiliser les identifiants fournis
+- **Administrateur** : `admin@pmp.local` / `admin123`
+
+### 📸 Workflow Utilisateur
+
+1. **Galerie** (`/gallery`)
+   - Créer une galerie
+   - Uploader des images
+   - Attendre le traitement automatique (thumbnails, previews)
+
+2. **Recadrage** (`/crop`)
+   - Sélectionner des images
+   - Utiliser les outils de recadrage
+   - Appliquer des transformations
+
+3. **Description** (`/description`)
+   - Ajouter des métadonnées complètes
+   - Définir titre, description, tags, texte alternatif
+
+4. **Tri** (`/sort`)
+   - Créer des publications
+   - Organiser les images par drag & drop
+   - Définir l'ordre d'affichage
+
+5. **Calendrier** (`/calendar`)
+   - Planifier les publications
+   - Glisser les publications sur les dates souhaitées
+
+6. **Export** (`/calendar`)
+   - Sélectionner les publications à exporter
+   - Télécharger l'archive ZIP avec métadonnées
+
+### 👑 Interface Administrateur (`/admin`)
+
+- **Tableau de bord** : Statistiques et activité système
+- **Gestion utilisateurs** : Promouvoir/rétrograder des utilisateurs
+- **Impersonation** : Se connecter en tant qu'un utilisateur
+- **Santé du système** : Monitoring CPU, mémoire, stockage
+
+## 🧪 Tests
+
+### Tests End-to-End (Playwright)
 ```bash
-npm run build
-npm run start
+# Interface interactive
+npm run test:e2e:ui
+
+# Tests headless
+npm run test:e2e
+
+# Tests spécifiques
+npx playwright test tests/e2e/auth.spec.ts
 ```
 
-### Lancer les tests
-
+### Tests Unitaires (Vitest)
 ```bash
+# Tous les tests
+npm run test:unit
+
+# Mode watch
 npm run test
 ```
 
-## Structure du projet
+## 🔧 Développement
 
+### Structure du Projet
 ```
-├── src/
-│   ├── app/                 # Pages Next.js App Router
-│   │   ├── (app)/          # Routes utilisateur
-│   │   ├── admin/          # Interface administrateur
-│   │   ├── api/            # API Routes
-│   │   └── ...
-│   ├── components/         # Composants React
-│   ├── lib/               # Utilitaires et configurations
-│   ├── hooks/             # Hooks personnalisés
-│   ├── store/             # État global (Zustand)
-│   └── types/             # Définitions TypeScript
-├── prisma/                # Schéma et migrations
-├── worker/                # Service de traitement en arrière-plan
-└── public/                # Fichiers statiques
-```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API Routes
+│   │   ├── auth/          # Authentification
+│   │   ├── galleries/     # Gestion des galeries
+│   │   ├── publications/  # Publications
+│   │   ├── export/        # Export ZIP
+│   │   └── admin/         # Interface admin
+│   ├── gallery/           # Page galerie
+│   ├── crop/             # Page recadrage
+│   ├── description/      # Page métadonnées
+│   ├── sort/             # Page tri
+│   ├── calendar/         # Page calendrier
+│   └── admin/            # Page admin
+├── components/           # Composants React
+├── lib/                  # Utilitaires et configuration
+└── types/                # Types TypeScript
 
-## Scripts disponibles
-
-- `npm run dev` - Démarrer en développement
-- `npm run build` - Construire pour la production
-- `npm run start` - Démarrer en production
-- `npm run lint` - Vérifier le code
-- `npm run db:generate` - Générer le client Prisma
-- `npm run db:push` - Appliquer le schéma à la DB
-- `npm run db:studio` - Ouvrir Prisma Studio
-- `npm run worker:dev` - Démarrer le worker en développement
-
-## API
-
-### Jobs
-
-- `POST /api/jobs` - Créer un nouveau job
-- `GET /api/jobs/[jobId]` - Statut d'un job
-
-### Images
-
-- `GET /api/images` - Liste des images
-- `POST /api/images` - Upload d'images
-- `GET /api/images/[id]` - Détails d'une image
-
-## Worker
-
-Le worker traite les jobs en arrière-plan :
-
-- Traitement d'images (recadrage, redimensionnement)
-- Création de ZIP
-- Traitement vidéo
-
-Pour démarrer le worker séparément :
-
-```bash
-cd worker
-npm install
-npm run dev
+worker/                   # Worker BullMQ
+tests/                    # Tests automatisés
 ```
 
-## Déploiement
-
-### Production avec Docker
-
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-### Variables d'environnement de production
+### Variables d'Environnement
 
 ```env
+# Base de données
+DATABASE_URL="postgresql://user:pass@localhost:5432/pmp"
+
+# Authentification
+NEXTAUTH_SECRET="votre-secret-256-bits"
+NEXTAUTH_URL="http://localhost:3000"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# Configuration
 NODE_ENV="production"
-DATABASE_URL="..."  # URL de production
-REDIS_URL="..."
-NEXTAUTH_SECRET="..."
-NEXTAUTH_URL="https://votre-domaine.com"
+LOG_LEVEL="info"
 ```
 
-## Support
+## 🚀 Déploiement
 
-Pour toute question ou problème, veuillez consulter la documentation ou créer une issue sur le repository.
+### Production (Docker)
+```bash
+# Build et déploiement
+docker-compose -f docker-compose.prod.yml up -d
 
-## Licence
+# Migrations de base de données
+docker-compose exec app npm run db:push
+```
 
-Ce projet est sous licence MIT.
+### Production (Manuel)
+```bash
+# Build de l'application
+npm run build
+
+# Démarrer en production
+npm start
+```
+
+## 🔍 Monitoring et Logs
+
+### Logs Structurés
+```bash
+# Voir les logs de l'application
+docker-compose logs -f app
+
+# Logs du worker
+docker-compose logs -f worker
+
+# Logs de la base de données
+docker-compose logs -f db
+```
+
+### Métriques
+- Accès admin : http://localhost:3000/admin
+- Health checks disponibles sur `/api/health`
+
+## 🤝 Contribution
+
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit les changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
+
+## 📄 Licence
+
+Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## 🆘 Support
+
+- **Documentation** : Voir les spécifications dans `Appspecifications.md`
+- **Issues** : Créer un ticket sur GitHub
+- **Discussions** : Utiliser les discussions GitHub
+
+---
+
+**🎉 PMP est maintenant prêt pour la production !**
+
+Pour commencer : http://localhost:3000

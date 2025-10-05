@@ -1,43 +1,11 @@
-export interface User {
-  id: string
-  email: string
-  name?: string
-  role: 'USER' | 'ADMIN'
-  createdAt: Date
-  updatedAt: Date
-}
+/**
+ * Types spécifiques à l'application PMP
+ *
+ * Pour les modèles de données, utilisez les types générés par Prisma :
+ * import { User, Image, Job, Publication, Gallery, Role, JobType, JobStatus } from '@prisma/client'
+ */
 
-export interface Image {
-  id: string
-  filename: string
-  originalName: string
-  path: string
-  size: number
-  mimeType: string
-  width?: number
-  height?: number
-  description?: string
-  tags: string[]
-  uploadedAt: Date
-  userId: string
-  user?: User
-}
-
-export interface Job {
-  id: string
-  type: 'IMAGE_CROP' | 'IMAGE_RESIZE' | 'ZIP_CREATE' | 'VIDEO_PROCESS'
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
-  data?: any
-  result?: any
-  error?: string
-  createdAt: Date
-  updatedAt: Date
-  startedAt?: Date
-  completedAt?: Date
-  userId: string
-  user?: User
-}
-
+// Types utilitaires pour les réponses API
 export interface ApiResponse<T> {
   success: boolean
   data?: T
@@ -45,6 +13,7 @@ export interface ApiResponse<T> {
   message?: string
 }
 
+// Types pour la pagination
 export interface PaginationParams {
   page?: number
   limit?: number
@@ -62,6 +31,7 @@ export interface PaginatedResponse<T> {
   }
 }
 
+// Types pour le traitement d'images
 export interface CropParams {
   x: number
   y: number
@@ -80,6 +50,7 @@ export interface ImageProcessParams {
   params: CropParams | ResizeParams
 }
 
+// Types pour les filtres de recherche
 export interface GalleryFilters {
   search?: string
   tags?: string[]
@@ -87,7 +58,3 @@ export interface GalleryFilters {
   dateTo?: Date
   userId?: string
 }
-
-export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
-export type JobType = 'IMAGE_CROP' | 'IMAGE_RESIZE' | 'ZIP_CREATE' | 'VIDEO_PROCESS'
-export type UserRole = 'USER' | 'ADMIN'

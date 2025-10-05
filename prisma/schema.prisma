@@ -20,7 +20,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  jobs      Job[]
+  jobs        Job[]
+  galleries   Gallery[]
+  images      Image[]
+  variants    ImageVariant[]
+  publications Publication[]
+  sessions    Session[]
+  accounts    Account[]
 
   @@map("users")
 }
@@ -44,6 +50,22 @@ model Job {
   @@map("jobs")
 }
 
+model Gallery {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?  // Pour la palette de couleurs dynamique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images      Image[]
+
+  @@map("galleries")
+}
+
 model Image {
   id          String   @id @default(cuid())
   filename    String
@@ -53,15 +75,75 @@ model Image {
   mimeType    String
   width       Int?
   height      Int?
+  title       String?
   description String?
-  tags        String[]
+  tags        String?
+  alt         String?  // Texte alternatif pour l'accessibilité
+  caption     String?  // Légende
   uploadedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  galleryId   String
+  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  publications PublicationImage[]
+  variants    ImageVariant[]
 
   @@map("images")
+}
+
+model ImageVariant {
+  id          String   @id @default(cuid())
+  filename    String
+  path        String
+  width       Int
+  height      Int
+  size        Int
+  mimeType    String
+  variantType String   // 'crop', 'resize', 'rotate', etc.
+  parameters  Json?    // Paramètres utilisés pour créer cette variante
+  createdAt   DateTime @default(now())
+
+  // Relations
+  imageId     String
+  image       Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("image_variants")
+}
+
+model Publication {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images      PublicationImage[]
+
+  @@map("publications")
+}
+
+model PublicationImage {
+  id            String @id @default(cuid())
+  position      Int    // Pour l'ordre dans la publication
+  createdAt     DateTime @default(now())
+
+  // Relations
+  publicationId String
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  imageId       String
+  image         Image   @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, imageId])
+  @@map("publication_images")
 }
 
 model Session {

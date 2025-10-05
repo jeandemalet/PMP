@@ -1,10 +1,8 @@
 import archiver from 'archiver'
 import { v4 as uuidv4 } from 'uuid'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import fs from 'fs/promises'
 import path from 'path'
-
-const prisma = new PrismaClient()
 
 export interface ZipProcessData {
   imageIds: string[]
@@ -39,13 +37,14 @@ export class ZipProcessor {
       await fs.mkdir(outputDir, { recursive: true })
 
       // Create write stream for ZIP file
-      const output = await fs.open(outputPath, 'w')
+      const outputFileHandle = await fs.open(outputPath, 'w')
       const archive = archiver('zip', {
         zlib: { level: 9 } // Maximum compression
       })
 
       // Pipe archive data to the file
-      archive.pipe(output.createWriteStream())
+      const writeStream = outputFileHandle.createWriteStream()
+      archive.pipe(writeStream)
 
       // Add images to archive
       for (const image of images) {
@@ -64,9 +63,13 @@ export class ZipProcessor {
       await archive.finalize()
 
       // Wait for the archive to finish
-      await new Promise((resolve, reject) => {
-        output.on('close', resolve)
-        archive.on('error', reject)
+      await new Promise<void>((resolve, reject) => {
+        writeStream.on('close', () => {
+          outputFileHandle.close().then(resolve).catch(reject)
+        })
+        archive.on('error', (error: Error) => {
+          outputFileHandle.close().then(() => reject(error)).catch(reject)
+        })
       })
 
       // Get archive stats
