@@ -49,20 +49,28 @@ export default function DescriptionPage() {
     caption: '',
   });
 
-  // Récupérer les images de l'utilisateur
+  // Récupérer les images de la galerie
   const fetchImages = async () => {
     if (!imageId) return;
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/images');
-      if (response.ok) {
-        const data = await response.json();
-        setImages(data.images || []);
+      // Récupérer l'ID de la galerie depuis l'URL ou l'API
+      const imageResponse = await fetch(`/api/images/${imageId}`);
+      if (imageResponse.ok) {
+        const imageData = await imageResponse.json();
 
-        // Trouver l'index de l'image actuelle
-        const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
-        setCurrentImageIndex(currentIndex);
+        // Récupérer les images de la même galerie avec pagination
+        const galleryId = imageData.image?.galleryId;
+        const response = await fetch(`/api/images?galleryId=${galleryId}&limit=100`);
+        if (response.ok) {
+          const data = await response.json();
+          setImages(data.images || []);
+
+          // Trouver l'index de l'image actuelle
+          const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
+          setCurrentImageIndex(currentIndex);
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement des images:', error);

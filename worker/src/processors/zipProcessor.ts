@@ -4,6 +4,11 @@ import { prisma } from '../lib/prisma'
 import fs from 'fs/promises'
 import path from 'path'
 
+// Instance partagée de Prisma déjà configurée dans ../lib/prisma.ts
+
+// Instance partagée de Prisma déjà configurée dans ../lib/prisma.ts
+// Cette approche évite de créer plusieurs pools de connexions
+
 export interface ZipProcessData {
   imageIds: string[]
   archiveName?: string

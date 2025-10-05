@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { notifications } from '@/lib/notifications';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -66,7 +67,7 @@ export default function LoginPage() {
 
         // Inscription réussie - afficher message de succès et basculer en mode connexion
         setError('');
-        alert('Compte créé avec succès ! Veuillez vous connecter.');
+        notifications.success('Compte créé avec succès ! Veuillez vous connecter.');
         setIsLogin(true);
 
         // Réinitialiser le formulaire

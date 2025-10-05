@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { GallerySidebar } from '@/components/gallery/GallerySidebar';
 import { GalleryGrid } from '@/components/gallery/GalleryGrid';
 import { UploadDialog } from '@/components/gallery/UploadDialog';
+import { notifications } from '@/lib/notifications';
 
 interface Gallery {
   id: string;
@@ -59,6 +60,20 @@ export default function GalleryPage() {
   }, [isAuthenticated]);
 
   const handleCreateGallery = async (name: string, description?: string) => {
+    // Création optimiste : ajouter immédiatement la galerie à l'état local
+    const optimisticGallery: Gallery = {
+      id: `temp-${Date.now()}`, // ID temporaire
+      name,
+      description: description || null,
+      color: null,
+      createdAt: new Date().toISOString(),
+      _count: { images: 0 },
+      images: []
+    };
+
+    // Ajouter temporairement la galerie à la liste
+    setGalleries(prev => [...prev, optimisticGallery]);
+
     try {
       const response = await fetch('/api/galleries', {
         method: 'POST',
@@ -69,10 +84,19 @@ export default function GalleryPage() {
       });
 
       if (response.ok) {
-        await fetchGalleries(); // Recharger les galeries
+        await fetchGalleries(); // Recharger les galeries pour obtenir les vraies données
+        notifications.success('Galerie créée avec succès');
+      } else {
+        // Retirer la galerie temporaire en cas d'erreur
+        setGalleries(prev => prev.filter(g => g.id !== optimisticGallery.id));
+        const errorData = await response.json();
+        notifications.error(errorData.error || 'Erreur lors de la création de la galerie');
       }
     } catch (error) {
+      // Retirer la galerie temporaire en cas d'erreur
+      setGalleries(prev => prev.filter(g => g.id !== optimisticGallery.id));
       console.error('Erreur lors de la création de la galerie:', error);
+      notifications.error('Erreur lors de la création de la galerie');
     }
   };
 
@@ -87,9 +111,14 @@ export default function GalleryPage() {
         if (selectedGallery?.id === galleryId) {
           setSelectedGallery(galleries.find(g => g.id !== galleryId) || null);
         }
+        notifications.success('Galerie supprimée avec succès');
+      } else {
+        const errorData = await response.json();
+        notifications.error(errorData.error || 'Erreur lors de la suppression de la galerie');
       }
     } catch (error) {
       console.error('Erreur lors de la suppression de la galerie:', error);
+      notifications.error('Erreur lors de la suppression de la galerie');
     }
   };
 

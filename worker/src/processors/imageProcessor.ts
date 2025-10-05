@@ -2,6 +2,14 @@ import sharp from 'sharp'
 import { prisma } from '../lib/prisma'
 import fs from 'fs/promises'
 import path from 'path'
+import * as SmartCropModule from '../lib/smartcrop.js'
+import { nodeImageOperations } from '../lib/smartcrop-node-bridge'
+
+// Importer SmartCrop de manière fonctionnelle
+const SmartCrop = SmartCropModule.default || SmartCropModule
+
+// Instance partagée de Prisma déjà configurée dans ../lib/prisma.ts
+// Cette approche évite de créer plusieurs pools de connexions
 
 export interface CropOperation {
   crop?: {
@@ -313,7 +321,7 @@ export class ImageProcessor {
     }
   }
 
-  // Méthode pour le recadrage automatique basé sur l'entropie (smart crop)
+  // Méthode pour le recadrage automatique intelligent avec smartcrop.js
   async smartCrop(imageId: string, targetWidth: number, targetHeight: number) {
     console.log(`Smart-cropping image ${imageId} to ${targetWidth}x${targetHeight}`)
 
@@ -329,59 +337,36 @@ export class ImageProcessor {
     const inputPath = path.join(process.cwd(), image.path)
 
     try {
-      // Charger l'image et calculer l'entropie pour trouver la zone la plus intéressante
-      const sharpInstance = sharp(inputPath)
-      const metadata = await sharpInstance.metadata()
+      // 1. Utiliser smartcrop.js pour trouver la meilleure zone de recadrage
+      const cropResult = await SmartCrop.crop(inputPath, {
+        width: targetWidth,
+        height: targetHeight,
+        imageOperations: nodeImageOperations, // <-- C'est ici qu'on injecte notre pont !
+      })
 
-      if (!metadata.width || !metadata.height) {
-        throw new Error('Unable to get image dimensions')
-      }
+      const bestCrop = cropResult.topCrop
+      console.log('Best crop found by smartcrop.js:', bestCrop)
 
-      const originalWidth = metadata.width
-      const originalHeight = metadata.height
-
-      // Calculer le ratio d'aspect cible
-      const targetRatio = targetWidth / targetHeight
-
-      let cropWidth: number
-      let cropHeight: number
-
-      if (originalWidth / originalHeight > targetRatio) {
-        // L'image est plus large que le ratio cible
-        cropHeight = originalHeight
-        cropWidth = Math.round(originalHeight * targetRatio)
-      } else {
-        // L'image est plus haute que le ratio cible
-        cropWidth = originalWidth
-        cropHeight = Math.round(originalWidth / targetRatio)
-      }
-
-      // Diviser l'image en régions pour analyser l'entropie
-      const regions = await this.analyzeImageEntropy(inputPath, originalWidth, originalHeight)
-
-      // Trouver la région avec la plus haute entropie qui respecte le ratio d'aspect
-      const bestRegion = this.findOptimalCropArea(regions, cropWidth, cropHeight, originalWidth, originalHeight)
-
-      // Appliquer le recadrage intelligent
+      // 2. Utiliser Sharp pour effectuer le recadrage physique
       const outputDir = path.dirname(inputPath)
       const outputFilename = `smartcrop_${Date.now()}.jpeg`
       const outputPath = path.join(outputDir, outputFilename)
 
-      await sharpInstance
+      await sharp(inputPath)
         .extract({
-          left: Math.round(bestRegion.x),
-          top: Math.round(bestRegion.y),
-          width: Math.round(bestRegion.width),
-          height: Math.round(bestRegion.height)
+          left: Math.round(bestCrop.x),
+          top: Math.round(bestCrop.y),
+          width: Math.round(bestCrop.width),
+          height: Math.round(bestCrop.height),
         })
+        .resize(targetWidth, targetHeight) // Redimensionner à la taille finale
         .jpeg({ quality: 90 })
         .toFile(outputPath)
 
-      // Get new image stats
+      // 3. Sauvegarder la variante dans la base de données
       const stats = await fs.stat(outputPath)
       const newMetadata = await sharp(outputPath).metadata()
 
-      // Create variant record
       const variant = await prisma.imageVariant.create({
         data: {
           filename: outputFilename,
@@ -394,14 +379,7 @@ export class ImageProcessor {
           parameters: {
             targetWidth,
             targetHeight,
-            originalWidth,
-            originalHeight,
-            cropX: bestRegion.x,
-            cropY: bestRegion.y,
-            cropWidth: bestRegion.width,
-            cropHeight: bestRegion.height,
-            method: 'entropy',
-            entropy: bestRegion.entropy
+            ...bestCrop // Sauvegarder les résultats de l'analyse
           },
           imageId: imageId,
           userId: image.userId,
@@ -416,12 +394,12 @@ export class ImageProcessor {
         width: newMetadata.width || 0,
         height: newMetadata.height || 0,
         cropArea: {
-          x: bestRegion.x,
-          y: bestRegion.y,
-          width: bestRegion.width,
-          height: bestRegion.height
+          x: bestCrop.x,
+          y: bestCrop.y,
+          width: bestCrop.width,
+          height: bestCrop.height,
         },
-        entropy: bestRegion.entropy
+        score: bestCrop.score, // Vous avez maintenant un score de pertinence !
       }
 
     } catch (error) {
@@ -430,186 +408,7 @@ export class ImageProcessor {
     }
   }
 
-  // Analyser l'entropie d'une image pour détecter les zones d'intérêt
-  private async analyzeImageEntropy(imagePath: string, width: number, height: number) {
-    try {
-      // Utiliser les statistiques de Sharp pour analyser l'image
-      const stats = await sharp(imagePath).stats()
 
-      // Calculer l'entropie basée sur la variance des canaux de couleur
-      const regions = []
-      const gridSize = 8 // Grille plus fine pour une meilleure précision
-      const regionWidth = Math.floor(width / gridSize)
-      const regionHeight = Math.floor(height / gridSize)
-
-      for (let y = 0; y < gridSize; y++) {
-        for (let x = 0; x < gridSize; x++) {
-          const regionX = x * regionWidth
-          const regionY = y * regionHeight
-
-          // Extraire les statistiques de cette région
-          try {
-            const regionStats = await sharp(imagePath)
-              .extract({
-                left: regionX,
-                top: regionY,
-                width: Math.min(regionWidth, width - regionX),
-                height: Math.min(regionHeight, height - regionY)
-              })
-              .stats()
-
-            // Calculer l'entropie basée sur la variance des canaux
-            const channels = regionStats.channels
-            let entropy = 0
-
-            for (const channel of channels) {
-              // Calculer la variance pour chaque canal
-              const mean = channel.mean
-              const variance = channels.reduce((sum, ch) => {
-                return sum + Math.pow(ch.mean - mean, 2)
-              }, 0) / channels.length
-
-              // L'entropie est proportionnelle à la variance (plus de détails = plus d'intérêt)
-              entropy += Math.sqrt(variance)
-            }
-
-            // Normaliser l'entropie
-            entropy = entropy / channels.length
-
-            // Ajouter un bonus pour les régions centrales (composition classique)
-            const centerX = regionX + regionWidth / 2
-            const centerY = regionY + regionHeight / 2
-            const distanceFromCenter = Math.sqrt(
-              Math.pow(centerX - width / 2, 2) + Math.pow(centerY - height / 2, 2)
-            )
-            const centerBonus = Math.max(0, 50 - (distanceFromCenter / (Math.sqrt(width * width + height * height) / 2)) * 30)
-
-            const finalEntropy = Math.min(100, entropy + centerBonus)
-
-            regions.push({
-              x: regionX,
-              y: regionY,
-              width: Math.min(regionWidth, width - regionX),
-              height: Math.min(regionHeight, height - regionY),
-              entropy: finalEntropy,
-              centerX,
-              centerY
-            })
-          } catch (regionError) {
-            // Fallback si l'extraction de région échoue
-            regions.push({
-              x: regionX,
-              y: regionY,
-              width: Math.min(regionWidth, width - regionX),
-              height: Math.min(regionHeight, height - regionY),
-              entropy: 25, // Score neutre par défaut
-              centerX: regionX + regionWidth / 2,
-              centerY: regionY + regionHeight / 2
-            })
-          }
-        }
-      }
-
-      return regions
-    } catch (error) {
-      console.warn('Erreur lors de l\'analyse d\'entropie, utilisation du fallback:', error)
-      // Fallback à une approche simplifiée si l'analyse Sharp échoue
-      return this.analyzeImageEntropyFallback(width, height)
-    }
-  }
-
-  // Fallback pour l'analyse d'entropie si Sharp échoue
-  private analyzeImageEntropyFallback(width: number, height: number) {
-    const gridSize = 8
-    const regionWidth = Math.floor(width / gridSize)
-    const regionHeight = Math.floor(height / gridSize)
-    const regions = []
-
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        const regionX = x * regionWidth
-        const regionY = y * regionHeight
-
-        // Calculer un score basé sur la position et des facteurs visuels
-        const centerX = regionX + regionWidth / 2
-        const centerY = regionY + regionHeight / 2
-        const distanceFromCenter = Math.sqrt(
-          Math.pow(centerX - width / 2, 2) + Math.pow(centerY - height / 2, 2)
-        )
-
-        // Les régions centrales et celles avec plus de contraste ont plus d'intérêt
-        const centerScore = Math.max(0, 100 - distanceFromCenter / Math.sqrt(width * width + height * height) * 100)
-        const contrastBonus = (Math.sin(x * 0.5) + Math.sin(y * 0.5)) * 10 + 20
-
-        const entropy = Math.min(100, centerScore + contrastBonus)
-
-        regions.push({
-          x: regionX,
-          y: regionY,
-          width: Math.min(regionWidth, width - regionX),
-          height: Math.min(regionHeight, height - regionY),
-          entropy,
-          centerX,
-          centerY
-        })
-      }
-    }
-
-    return regions
-  }
-
-  // Trouver la zone de recadrage optimale basée sur l'entropie
-  private findOptimalCropArea(regions: any[], cropWidth: number, cropHeight: number, imageWidth: number, imageHeight: number) {
-    let bestRegion = null
-    let maxEntropy = -1
-
-    // Tester différentes positions de recadrage
-    for (const region of regions) {
-      // Calculer la position possible pour cette région
-      const possibleX = Math.max(0, Math.min(region.centerX - cropWidth / 2, imageWidth - cropWidth))
-      const possibleY = Math.max(0, Math.min(region.centerY - cropHeight / 2, imageHeight - cropHeight))
-
-      // Calculer l'entropie totale pour cette zone
-      let totalEntropy = 0
-      let regionsInArea = 0
-
-      for (const r of regions) {
-        // Vérifier si cette région est dans la zone de recadrage
-        if (r.x >= possibleX && r.x < possibleX + cropWidth &&
-            r.y >= possibleY && r.y < possibleY + cropHeight) {
-          totalEntropy += r.entropy
-          regionsInArea++
-        }
-      }
-
-      if (regionsInArea > 0) {
-        const averageEntropy = totalEntropy / regionsInArea
-        if (averageEntropy > maxEntropy) {
-          maxEntropy = averageEntropy
-          bestRegion = {
-            x: possibleX,
-            y: possibleY,
-            width: cropWidth,
-            height: cropHeight,
-            entropy: averageEntropy
-          }
-        }
-      }
-    }
-
-    // Fallback au centre si aucune région n'est trouvée
-    if (!bestRegion) {
-      bestRegion = {
-        x: Math.round((imageWidth - cropWidth) / 2),
-        y: Math.round((imageHeight - cropHeight) / 2),
-        width: cropWidth,
-        height: cropHeight,
-        entropy: 50
-      }
-    }
-
-    return bestRegion
-  }
 }
 
 export const imageProcessor = new ImageProcessor()
