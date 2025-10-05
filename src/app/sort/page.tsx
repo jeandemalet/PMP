@@ -46,6 +46,7 @@ export default function SortPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [sortType, setSortType] = useState<'manual' | 'chronological' | 'random' | 'interlaced'>('manual');
 
   // Récupérer les publications
   const fetchPublications = async () => {
@@ -76,6 +77,72 @@ export default function SortPage() {
   const handlePublicationSelect = (publication: Publication) => {
     setSelectedPublication(publication);
     setSortableImages(publication.images);
+    setSortType('manual');
+  };
+
+  // Fonction pour obtenir le libellé du tri
+  const getSortLabel = (type: 'manual' | 'chronological' | 'random' | 'interlaced') => {
+    switch (type) {
+      case 'manual': return 'Manuel';
+      case 'chronological': return 'Chronologique';
+      case 'random': return 'Aléatoire';
+      case 'interlaced': return 'Entrelacé';
+      default: return 'Manuel';
+    }
+  };
+
+  // Fonctions de tri avancées
+  const applySort = (type: 'manual' | 'chronological' | 'random' | 'interlaced') => {
+    if (!selectedPublication) return;
+
+    let sortedImages = [...selectedPublication.images];
+
+    switch (type) {
+      case 'chronological':
+        // Trier par date d'upload (si disponible) ou par ordre alphabétique du nom
+        sortedImages.sort((a, b) => {
+          const nameA = a.image.originalName.toLowerCase();
+          const nameB = b.image.originalName.toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        break;
+
+      case 'random':
+        // Tri aléatoire
+        for (let i = sortedImages.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [sortedImages[i], sortedImages[j]] = [sortedImages[j], sortedImages[i]];
+        }
+        break;
+
+      case 'interlaced':
+        // Tri entrelacé - alterner les images
+        if (sortedImages.length > 1) {
+          const firstHalf = sortedImages.slice(0, Math.ceil(sortedImages.length / 2));
+          const secondHalf = sortedImages.slice(Math.ceil(sortedImages.length / 2));
+          sortedImages = [];
+
+          for (let i = 0; i < Math.max(firstHalf.length, secondHalf.length); i++) {
+            if (firstHalf[i]) sortedImages.push(firstHalf[i]);
+            if (secondHalf[i]) sortedImages.push(secondHalf[i]);
+          }
+        }
+        break;
+
+      case 'manual':
+      default:
+        // Garder l'ordre actuel (manuel)
+        break;
+    }
+
+    // Mettre à jour les positions
+    const updatedImages = sortedImages.map((img, index) => ({
+      ...img,
+      position: index,
+    }));
+
+    setSortableImages(updatedImages);
+    setSortType(type);
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
@@ -280,12 +347,56 @@ export default function SortPage() {
             {selectedPublication ? (
               <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
                 <div className="p-4 border-b">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Tri: {selectedPublication.name}
-                  </h2>
-                  <p className="text-sm text-gray-600">
-                    Glissez les images pour réorganiser la publication
-                  </p>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        Tri: {selectedPublication.name}
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        {sortType === 'manual'
+                          ? 'Glissez les images pour réorganiser la publication'
+                          : `Tri appliqué: ${getSortLabel(sortType)}`
+                        }
+                      </p>
+                    </div>
+
+                    {/* Barre d'outils de tri */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600 mr-2">Tri:</span>
+                      <Button
+                        variant={sortType === 'manual' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => applySort('manual')}
+                        className="text-xs"
+                      >
+                        Manuel
+                      </Button>
+                      <Button
+                        variant={sortType === 'chronological' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => applySort('chronological')}
+                        className="text-xs"
+                      >
+                        Chronologique
+                      </Button>
+                      <Button
+                        variant={sortType === 'random' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => applySort('random')}
+                        className="text-xs"
+                      >
+                        Aléatoire
+                      </Button>
+                      <Button
+                        variant={sortType === 'interlaced' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => applySort('interlaced')}
+                        className="text-xs"
+                      >
+                        Entrelacé
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex-1 p-6 overflow-y-auto">

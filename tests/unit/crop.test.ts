@@ -151,67 +151,7 @@ describe('ImageProcessor - Tests Unitaires', () => {
     });
   });
 
-  describe('Recadrage automatique (autoCrop)', () => {
-    it('devrait effectuer un recadrage automatique pour un format paysage', async () => {
-      // Setup
-      const mockImage = {
-        id: 'test-image-id',
-        path: '/uploads/test-image.jpg',
-        userId: 'test-user-id',
-      };
 
-      mockPrisma.image.findUnique.mockResolvedValue(mockImage);
-      mockSharpInstance.metadata.mockResolvedValue({ width: 1920, height: 1080 });
-
-      // Execute
-      const result = await imageProcessor.autoCrop('test-image-id', 800, 600);
-
-      // Verify
-      expect(mockSharpInstance.extract).toHaveBeenCalledWith({
-        left: expect.any(Number),
-        top: expect.any(Number),
-        width: expect.any(Number),
-        height: expect.any(Number),
-      });
-
-      expect(mockPrisma.imageVariant.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          variantType: 'autocrop',
-          imageId: 'test-image-id',
-          userId: 'test-user-id',
-        }),
-      });
-
-      expect(result).toMatchObject({
-        success: true,
-        cropArea: {
-          x: expect.any(Number),
-          y: expect.any(Number),
-          width: expect.any(Number),
-          height: expect.any(Number),
-        },
-      });
-    });
-
-    it('devrait effectuer un recadrage automatique pour un format portrait', async () => {
-      // Setup
-      const mockImage = {
-        id: 'test-image-id',
-        path: '/uploads/test-image.jpg',
-        userId: 'test-user-id',
-      };
-
-      mockPrisma.image.findUnique.mockResolvedValue(mockImage);
-      mockSharpInstance.metadata.mockResolvedValue({ width: 1080, height: 1920 });
-
-      // Execute
-      const result = await imageProcessor.autoCrop('test-image-id', 600, 800);
-
-      // Verify
-      expect(mockSharpInstance.extract).toHaveBeenCalled();
-      expect(result.success).toBe(true);
-    });
-  });
 
   describe('Recadrage intelligent (smartCrop)', () => {
     it('devrait effectuer un recadrage intelligent basé sur l\'entropie', async () => {

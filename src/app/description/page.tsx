@@ -41,6 +41,7 @@ export default function DescriptionPage() {
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -49,8 +50,14 @@ export default function DescriptionPage() {
     caption: '',
   });
 
-  // Récupérer les images de la galerie
-  const fetchImages = async () => {
+  // Debounce timer pour la sauvegarde automatique
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Cache pour éviter les requêtes répétées
+  const galleryCache = new Map();
+
+  // Récupérer les images de la galerie avec pagination intelligente et cache
+  const fetchImages = async (page: number = 1, pageSize: number = 20) => {
     if (!imageId) return;
 
     setIsLoading(true);
@@ -62,14 +69,33 @@ export default function DescriptionPage() {
 
         // Récupérer les images de la même galerie avec pagination
         const galleryId = imageData.image?.galleryId;
-        const response = await fetch(`/api/images?galleryId=${galleryId}&limit=100`);
-        if (response.ok) {
-          const data = await response.json();
-          setImages(data.images || []);
+        if (galleryId) {
+          // Vérifier le cache d'abord
+          const cacheKey = `${galleryId}-${page}-${pageSize}`;
+          if (galleryCache.has(cacheKey)) {
+            const cachedData = galleryCache.get(cacheKey);
+            setImages(cachedData.images || []);
 
-          // Trouver l'index de l'image actuelle
-          const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
-          setCurrentImageIndex(currentIndex);
+            // Trouver l'index de l'image actuelle
+            const currentIndex = cachedData.images?.findIndex((img: Image) => img.id === imageId) || 0;
+            setCurrentImageIndex(currentIndex);
+            setIsLoading(false);
+            return;
+          }
+
+          const response = await fetch(`/api/images?galleryId=${galleryId}&page=${page}&limit=${pageSize}`);
+          if (response.ok) {
+            const data = await response.json();
+
+            // Mettre en cache les données
+            galleryCache.set(cacheKey, data);
+
+            setImages(data.images || []);
+
+            // Trouver l'index de l'image actuelle
+            const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
+            setCurrentImageIndex(currentIndex);
+          }
         }
       }
     } catch (error) {
@@ -79,12 +105,33 @@ export default function DescriptionPage() {
     }
   };
 
-  // Récupérer les métadonnées de l'image actuelle
+  // Cache pour les métadonnées
+  const metadataCache = new Map();
+
+  // Récupérer les métadonnées de l'image actuelle avec cache
   const fetchMetadata = async (imageId: string) => {
     try {
+      // Vérifier le cache d'abord
+      if (metadataCache.has(imageId)) {
+        const cachedMetadata = metadataCache.get(imageId);
+        setMetadata(cachedMetadata);
+        setFormData({
+          title: cachedMetadata.title || '',
+          description: cachedMetadata.description || '',
+          tags: cachedMetadata.tags || '',
+          alt: cachedMetadata.alt || '',
+          caption: cachedMetadata.caption || '',
+        });
+        return;
+      }
+
       const response = await fetch(`/api/images/${imageId}/metadata`);
       if (response.ok) {
         const data = await response.json();
+
+        // Mettre en cache les métadonnées
+        metadataCache.set(imageId, data.metadata);
+
         setMetadata(data.metadata);
         setFormData({
           title: data.metadata.title || '',

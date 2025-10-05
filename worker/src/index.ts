@@ -5,6 +5,14 @@ import { PrismaClient } from '@prisma/client'
 import { imageProcessor, ImageProcessingData } from './processors/imageProcessor'
 import { zipProcessor } from './processors/zipProcessor'
 
+// Interface pour les données du smart crop
+interface SmartCropData {
+  imageId: string;
+  targetWidth: number;
+  targetHeight: number;
+  userId: string;
+}
+
 // Load environment variables
 config()
 
@@ -97,6 +105,37 @@ const zipWorker = new Worker(
   }
 )
 
+// Create worker for smart crop
+const smartCropWorker = new Worker(
+  'smart-crop',
+  async (job: Job<SmartCropData>) => {
+    const { imageId, targetWidth, targetHeight, userId } = job.data
+
+    console.log(`Smart cropping image ${imageId} to ${targetWidth}x${targetHeight}`)
+
+    try {
+      // Use the smartCrop function from imageProcessor
+      const result = await imageProcessor.smartCrop({
+        imageId,
+        targetWidth,
+        targetHeight,
+        userId
+      })
+
+      console.log(`Smart crop completed for ${imageId}`)
+      return result
+
+    } catch (error) {
+      console.error(`Smart crop failed for ${imageId}:`, error)
+      throw error
+    }
+  },
+  {
+    connection: redis,
+    concurrency: 2, // Allow 2 concurrent smart crop operations
+  }
+)
+
 // Event listeners for image worker
 imageWorker.on('completed', (job: Job<ImageProcessingData> | undefined) => {
   console.log(`Image processing job ${job?.id} completed`)
@@ -115,11 +154,21 @@ zipWorker.on('failed', (job, err) => {
   console.error(`Zip creation job ${job?.id} failed:`, err.message)
 })
 
+// Event listeners for smart crop worker
+smartCropWorker.on('completed', (job: Job<SmartCropData> | undefined) => {
+  console.log(`Smart crop job ${job?.id} completed`)
+})
+
+smartCropWorker.on('failed', (job: Job<SmartCropData> | undefined, err) => {
+  console.error(`Smart crop job ${job?.id} failed:`, err.message)
+})
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('Shutting down workers...')
   await imageWorker.close()
   await zipWorker.close()
+  await smartCropWorker.close()
   await redis.quit()
   await prisma.$disconnect()
   process.exit(0)
@@ -129,6 +178,7 @@ process.on('SIGINT', async () => {
   console.log('Shutting down workers...')
   await imageWorker.close()
   await zipWorker.close()
+  await smartCropWorker.close()
   await redis.quit()
   await prisma.$disconnect()
   process.exit(0)
@@ -137,3 +187,4 @@ process.on('SIGINT', async () => {
 console.log('PMP Worker started with BullMQ...')
 console.log('- Image processing worker: active')
 console.log('- Zip creation worker: active')
+console.log('- Smart crop worker: active')

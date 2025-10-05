@@ -12,6 +12,7 @@ import path from 'path'
 export interface ZipProcessData {
   imageIds: string[]
   archiveName?: string
+  includeMetadata?: boolean
 }
 
 export class ZipProcessor {
@@ -51,7 +52,7 @@ export class ZipProcessor {
       const writeStream = outputFileHandle.createWriteStream()
       archive.pipe(writeStream)
 
-      // Add images to archive
+      // Add images and metadata to archive
       for (const image of images) {
         const imagePath = path.join(process.cwd(), image.path)
 
@@ -59,6 +60,32 @@ export class ZipProcessor {
           // Check if file exists
           await fs.access(imagePath)
           archive.file(imagePath, { name: image.filename })
+
+          // Add metadata file if requested
+          if (data.includeMetadata) {
+            const metadata = {
+              id: image.id,
+              filename: image.filename,
+              originalName: image.originalName,
+              title: image.title,
+              description: image.description,
+              alt: image.alt,
+              caption: image.caption,
+              tags: image.tags,
+              width: image.width,
+              height: image.height,
+              mimeType: image.mimeType,
+              uploadedAt: image.uploadedAt,
+            }
+
+            const metadataFilename = image.filename.replace(/\.[^/.]+$/, '.txt')
+            const metadataContent = Object.entries(metadata)
+              .filter(([key, value]) => value !== null && value !== undefined)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join('\n')
+
+            archive.append(metadataContent, { name: metadataFilename })
+          }
         } catch (error) {
           console.warn(`Skipping missing file: ${imagePath}`)
         }

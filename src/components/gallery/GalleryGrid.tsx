@@ -41,6 +41,9 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
   const [images, setImages] = useState<Image[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'size'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [zoomLevel, setZoomLevel] = useState(4); // Nombre de colonnes par défaut
 
   // Récupérer les images de la galerie sélectionnée
   const fetchImages = async () => {
@@ -214,9 +217,9 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
-      {/* Header */}
+      {/* Header avec contrôles de zoom et tri */}
       <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">{gallery.name}</h2>
             {gallery.description && (
@@ -243,6 +246,50 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
             )}
           </div>
         </div>
+
+        {/* Contrôles de zoom et tri selon le cahier des charges */}
+        {images.length > 0 && (
+          <div className="flex items-center space-x-4">
+            {/* Contrôle de zoom */}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Zoom:</span>
+              <div className="flex items-center space-x-1">
+                {[2, 3, 4, 5, 6].map((level) => (
+                  <Button
+                    key={level}
+                    onClick={() => setZoomLevel(level)}
+                    size="sm"
+                    variant={zoomLevel === level ? "default" : "outline"}
+                    className="w-8 h-8 p-0"
+                  >
+                    {level}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sélecteur de tri */}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700">Tri:</span>
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [field, order] = e.target.value.split('-');
+                  setSortBy(field as 'date' | 'name' | 'size');
+                  setSortOrder(order as 'asc' | 'desc');
+                }}
+                className="text-sm border border-gray-300 rounded px-2 py-1"
+              >
+                <option value="date-desc">📅 Plus récent</option>
+                <option value="date-asc">📅 Plus ancien</option>
+                <option value="name-asc">🔤 Nom A-Z</option>
+                <option value="name-desc">🔤 Nom Z-A</option>
+                <option value="size-desc">📏 Plus lourd</option>
+                <option value="size-asc">📏 Plus léger</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}

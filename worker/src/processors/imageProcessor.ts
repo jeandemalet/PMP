@@ -5,8 +5,8 @@ import path from 'path'
 import * as SmartCropModule from '../lib/smartcrop.js'
 import { nodeImageOperations } from '../lib/smartcrop-node-bridge'
 
-// Importer SmartCrop de manière fonctionnelle
-const SmartCrop = SmartCropModule.default || SmartCropModule
+// Importer SmartCrop de manière fonctionnelle - la bibliothèque exporte directement la fonction crop
+const SmartCrop = SmartCropModule
 
 // Instance partagée de Prisma déjà configurée dans ../lib/prisma.ts
 // Cette approche évite de créer plusieurs pools de connexions
@@ -206,120 +206,7 @@ export class ImageProcessor {
     })
   }
 
-  // Méthode pour le recadrage automatique intelligent
-  async autoCrop(imageId: string, targetWidth: number, targetHeight: number) {
-    console.log(`Auto-cropping image ${imageId} to ${targetWidth}x${targetHeight}`)
 
-    // Get image from database
-    const image = await prisma.image.findUnique({
-      where: { id: imageId }
-    })
-
-    if (!image) {
-      throw new Error(`Image not found: ${imageId}`)
-    }
-
-    const inputPath = path.join(process.cwd(), image.path)
-
-    try {
-      // Charger l'image avec sharp
-      const sharpInstance = sharp(inputPath)
-      const metadata = await sharpInstance.metadata()
-
-      if (!metadata.width || !metadata.height) {
-        throw new Error('Unable to get image dimensions')
-      }
-
-      const originalWidth = metadata.width
-      const originalHeight = metadata.height
-
-      // Calculer le ratio d'aspect cible
-      const targetRatio = targetWidth / targetHeight
-      const originalRatio = originalWidth / originalHeight
-
-      let cropWidth: number
-      let cropHeight: number
-      let cropX: number
-      let cropY: number
-
-      if (originalRatio > targetRatio) {
-        // L'image originale est plus large, recadrer en hauteur
-        cropHeight = originalHeight
-        cropWidth = Math.round(originalHeight * targetRatio)
-        cropX = Math.round((originalWidth - cropWidth) / 2)
-        cropY = 0
-      } else {
-        // L'image originale est plus haute, recadrer en largeur
-        cropWidth = originalWidth
-        cropHeight = Math.round(originalWidth / targetRatio)
-        cropX = 0
-        cropY = Math.round((originalHeight - cropHeight) / 2)
-      }
-
-      // Appliquer le recadrage automatique
-      const outputDir = path.dirname(inputPath)
-      const outputFilename = `autocrop_${Date.now()}.jpeg`
-      const outputPath = path.join(outputDir, outputFilename)
-
-      await sharpInstance
-        .extract({
-          left: cropX,
-          top: cropY,
-          width: cropWidth,
-          height: cropHeight
-        })
-        .jpeg({ quality: 90 })
-        .toFile(outputPath)
-
-      // Get new image stats
-      const stats = await fs.stat(outputPath)
-      const newMetadata = await sharp(outputPath).metadata()
-
-      // Create variant record
-      const variant = await prisma.imageVariant.create({
-        data: {
-          filename: outputFilename,
-          path: path.relative(process.cwd(), outputPath),
-          width: newMetadata.width || 0,
-          height: newMetadata.height || 0,
-          size: stats.size,
-          mimeType: 'image/jpeg',
-          variantType: 'autocrop',
-          parameters: {
-            targetWidth,
-            targetHeight,
-            originalWidth,
-            originalHeight,
-            cropX,
-            cropY,
-            cropWidth,
-            cropHeight
-          },
-          imageId: imageId,
-          userId: image.userId,
-        }
-      })
-
-      return {
-        success: true,
-        variantId: variant.id,
-        outputPath: path.relative(process.cwd(), outputPath),
-        size: stats.size,
-        width: newMetadata.width || 0,
-        height: newMetadata.height || 0,
-        cropArea: {
-          x: cropX,
-          y: cropY,
-          width: cropWidth,
-          height: cropHeight
-        }
-      }
-
-    } catch (error) {
-      console.error('Auto-crop error:', error)
-      throw new Error(`Failed to auto-crop image: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
 
   // Méthode pour le recadrage automatique intelligent avec smartcrop.js
   async smartCrop(imageId: string, targetWidth: number, targetHeight: number) {

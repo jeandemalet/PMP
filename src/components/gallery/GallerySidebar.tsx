@@ -20,6 +20,7 @@ interface Gallery {
     mimeType: string;
     uploadedAt: string;
   }>;
+  isPending?: boolean; // Pour l'UI optimiste
 }
 
 interface GallerySidebarProps {
@@ -92,14 +93,22 @@ export function GallerySidebar({
                   selectedGallery?.id === gallery.id
                     ? 'bg-indigo-50 border-2 border-indigo-200'
                     : 'hover:bg-gray-50 border-2 border-transparent'
-                }`}
+                } ${gallery.isPending ? 'opacity-60' : ''}`}
                 onClick={() => onSelectGallery(gallery)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">
-                      {gallery.name}
-                    </h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-medium text-gray-900 truncate">
+                        {gallery.name}
+                      </h3>
+                      {gallery.isPending && (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
+                          <span className="text-xs text-indigo-600 ml-1">Création...</span>
+                        </div>
+                      )}
+                    </div>
                     {gallery.description && (
                       <p className="text-sm text-gray-600 truncate mt-1">
                         {gallery.description}
@@ -112,20 +121,22 @@ export function GallerySidebar({
                     </div>
                   </div>
 
-                  {/* Delete button - visible on hover */}
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm('Êtes-vous sûr de vouloir supprimer cette galerie ?')) {
-                        onDeleteGallery(gallery.id);
-                      }
-                    }}
-                    size="sm"
-                    variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    ×
-                  </Button>
+                  {/* Delete button - visible on hover and only for non-pending galleries */}
+                  {!gallery.isPending && (
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Êtes-vous sûr de vouloir supprimer cette galerie ?')) {
+                          onDeleteGallery(gallery.id);
+                        }
+                      }}
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      ×
+                    </Button>
+                  )}
                 </div>
 
                 {/* Preview images */}
