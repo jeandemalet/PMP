@@ -1,0 +1,28 @@
+{
+  "name": "pmp-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bull": "^4.10.0",
+    "ioredis": "^5.3.0",
+    "@prisma/client": "^5.0.0",
+    "sharp": "^0.32.0",
+    "archiver": "^5.3.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/bull": "^4.10.0",
+    "@types/node": "^20.0.0",
+    "@types/fluent-ffmpeg": "^2.1.0",
+    "@types/uuid": "^9.0.0",
+    "tsx": "^3.12.0",
+    "typescript": "^5.0.0"
+  }
+}
