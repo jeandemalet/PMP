@@ -1,0 +1,135 @@
+
+# =============================================================================
+# --- CONFIGURATION (Partie à modifier) ---
+# =============================================================================
+
+# 1. Chemin complet vers le dossier de votre projet
+$projetDirectory = "$env:USERPROFILE\Desktop\PMP"
+
+# 2. Nom du sous-dossier qui contiendra les exports (sera créé dans $projetDirectory)
+$outputSubfolderName = "copypaste export"
+
+
+# =============================================================================
+# --- PARAMÈTRES TECHNIQUES (Adapter si besoin) ---
+# =============================================================================
+
+# Extensions de fichier à INCLURE (contenu complet)
+$extensionsToInclude = @(
+    "*.js", "*.ts", "*.jsx", "*.tsx", "*.mjs", "*.cjs", # JavaScript/TypeScript
+    "*.html", "*.css", "*.scss", "*.svg",              # Web Frontend
+    "*.json", "*.md",                                 # Configuration & Docs
+    "*.prisma",                                       # Prisma Schema
+    "Dockerfile", "*.yml", "*.yaml"                   # Docker & CI/CD
+)
+
+# Dossiers dont le CONTENU doit être EXCLU (leur existence sera listée)
+$foldersToExcludeContent = @(
+    "node_modules",
+    ".next",
+    "prisma\migrations"
+)
+
+# Dossiers/fichiers à EXCLURE COMPLÈTEMENT de l'export
+$pathsToExcludeCompletely = @(
+    ".git", ".vscode", "dist", "build", "__pycache__",
+    ".DS_Store", "*.log", "*.tmp",
+    # Fichiers sensibles ou de lock
+    ".env*", "pnpm-lock.yaml", "yarn.lock", "package-lock.json",
+    # IMPORTANT : Exclure le dossier d'export lui-même pour éviter les boucles
+    $outputSubfolderName
+)
+
+
+# =============================================================================
+# --- SCRIPT D'EXPORTATION (Ne pas modifier) ---
+# =============================================================================
+
+# --- Validation initiale ---
+if (-not (Test-Path $projetDirectory -PathType Container)) {
+    Write-Error "ERREUR : Le dossier du projet '$projetDirectory' n'existe pas."
+    return
+}
+
+# --- Préparation des chemins ---
+$outputDirectory = Join-Path -Path $projetDirectory -ChildPath $outputSubfolderName
+New-Item -Path $outputDirectory -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+
+$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$outputFile = Join-Path -Path $outputDirectory -ChildPath "export_PMP_code_$($timestamp).txt"
+$fullPathPrefixesToExcludeContent = $foldersToExcludeContent | ForEach-Object { Join-Path -Path $projetDirectory -ChildPath $_ }
+
+# --- Exécution ---
+$streamWriter = $null
+try {
+    $streamWriter = New-Object System.IO.StreamWriter($outputFile, $false, [System.Text.Encoding]::UTF8)
+    $startTime = Get-Date
+
+    Write-Host "Début de l'exportation du projet '$projetDirectory'..." -ForegroundColor Green
+    $streamWriter.WriteLine("--- Export du projet '$($projetDirectory)' | Généré le $(Get-Date) ---")
+
+    # Récupération des fichiers
+    $allFiles = Get-ChildItem -Path $projetDirectory -Recurse -File -Include $extensionsToInclude -Exclude $pathsToExcludeCompletely -ErrorAction SilentlyContinue
+    Write-Host "Analyse de $($allFiles.Count) fichiers pertinents..."
+
+    $includedCount = 0
+    $skippedContentPaths = [System.Collections.Generic.List[string]]::new()
+
+    # Traitement des fichiers
+    foreach ($file in $allFiles) {
+        $relativePath = $file.FullName.Substring($projetDirectory.Length + 1)
+        $shouldExcludeContent = $false
+        foreach ($prefix in $fullPathPrefixesToExcludeContent) {
+            if ($file.FullName.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $shouldExcludeContent = $true
+                break
+            }
+        }
+
+        if ($shouldExcludeContent) {
+            $skippedContentPaths.Add($relativePath)
+        } else {
+            $streamWriter.WriteLine()
+            $streamWriter.WriteLine("====================================================================")
+            $streamWriter.WriteLine("--- Fichier: $relativePath")
+            $streamWriter.WriteLine("====================================================================")
+            $streamWriter.WriteLine()
+            try {
+                $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+                $streamWriter.WriteLine($content)
+                $includedCount++
+            } catch {
+                $streamWriter.WriteLine("/!\\ ERREUR DE LECTURE : $($_.Exception.Message) /!\\")
+            }
+        }
+    }
+
+    # Ajout du résumé des fichiers au contenu exclu
+    if ($skippedContentPaths.Count -gt 0) {
+        $streamWriter.WriteLine()
+        $streamWriter.WriteLine("####################################################################")
+        $streamWriter.WriteLine("# Contenu Exclu (total: $($skippedContentPaths.Count)) - Fichiers listés ci-dessous :")
+        $streamWriter.WriteLine("####################################################################")
+        $streamWriter.WriteLine()
+        $streamWriter.WriteLine(($skippedContentPaths -join "; "))
+    }
+
+    $streamWriter.WriteLine()
+    $streamWriter.WriteLine("--- Fin de l'exportation ---")
+
+    # --- Résumé final dans la console ---
+    $duration = (Get-Date) - $startTime
+    Write-Host "----------------------------------------"
+    Write-Host "Exportation terminée en $($duration.TotalSeconds.ToString("F2")) secondes." -ForegroundColor Green
+    Write-Host " - $($includedCount) fichier(s) inclus avec leur contenu."
+    Write-Host " - $($skippedContentPaths.Count) fichier(s) listé(s) (contenu ignoré)."
+    Write-Host "Fichier de sortie : $outputFile"
+
+} catch {
+    Write-Error "ERREUR GLOBALE : $($_.Exception.Message)"
+} finally {
+    if ($null -ne $streamWriter) {
+        $streamWriter.Close()
+        $streamWriter.Dispose()
+    }
+}
