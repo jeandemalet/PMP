@@ -54,7 +54,12 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/galleries/${gallery.id}/images`);
+      // Construire l'URL avec les paramètres de tri
+      const params = new URLSearchParams({
+        sortBy,
+        sortOrder,
+      });
+      const response = await fetch(`/api/galleries/${gallery.id}/images?${params}`);
       if (response.ok) {
         const data = await response.json();
         setImages(data.images || []);
@@ -106,30 +111,9 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
   // Configuration de la virtualisation
   const containerRef = useMemo(() => ({ current: null }), []);
 
-  // Calculer le nombre de colonnes basé sur la largeur du conteneur
-  const getColumnCount = () => {
-    if (typeof window === 'undefined') return 6; // Default pour SSR
-    const width = window.innerWidth;
-    if (width < 768) return 2; // Mobile
-    if (width < 1024) return 3; // Tablet
-    if (width < 1280) return 4; // Desktop moyen
-    return 6; // Desktop large
-  };
-
-  const [columnCount, setColumnCount] = useState(getColumnCount());
-
-  useEffect(() => {
-    const handleResize = () => {
-      setColumnCount(getColumnCount());
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Virtualisation avec TanStack Virtual
+  // Virtualisation avec TanStack Virtual - utilise zoomLevel pour le nombre de colonnes
   const rowVirtualizer = useVirtualizer({
-    count: Math.ceil(images.length / columnCount),
+    count: Math.ceil(images.length / zoomLevel),
     getScrollElement: () => containerRef.current,
     estimateSize: () => 200, // Hauteur estimée de chaque ligne (aspect ratio 1:1 + gap)
     overscan: 5, // Nombre de lignes à pré-charger

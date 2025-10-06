@@ -25,6 +25,11 @@ export async function GET(
 
     const galleryId = params.id;
 
+    // Récupérer les paramètres de tri depuis l'URL
+    const { searchParams } = new URL(request.url);
+    const sortBy = searchParams.get('sortBy') || 'date';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+
     // Vérifier que la galerie existe et appartient à l'utilisateur
     const gallery = await prisma.gallery.findFirst({
       where: {
@@ -44,7 +49,23 @@ export async function GET(
       );
     }
 
-    // Récupérer les images de la galerie
+    // Construire l'ordre de tri
+    const orderBy: any = {};
+    switch (sortBy) {
+      case 'date':
+        orderBy.uploadedAt = sortOrder;
+        break;
+      case 'name':
+        orderBy.originalName = sortOrder;
+        break;
+      case 'size':
+        orderBy.size = sortOrder;
+        break;
+      default:
+        orderBy.uploadedAt = 'desc';
+    }
+
+    // Récupérer les images de la galerie avec le tri demandé
     const images = await prisma.image.findMany({
       where: { galleryId },
       select: {
@@ -56,10 +77,10 @@ export async function GET(
         uploadedAt: true,
         width: true,
         height: true,
+        size: true,
+        mimeType: true,
       },
-      orderBy: {
-        uploadedAt: 'asc',
-      },
+      orderBy,
     });
 
     return NextResponse.json(
