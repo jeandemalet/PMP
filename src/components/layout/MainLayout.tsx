@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { useOnClickOutside } from '@/lib/hooks';
 import { Button } from '@/components/ui/button';
 
@@ -14,7 +14,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout } = useAuth();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   // Hook pour fermer le menu profil au clic extérieur

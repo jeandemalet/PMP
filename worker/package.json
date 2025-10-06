@@ -9,7 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "bull": "^4.10.0",
+    "bullmq": "^5.60.0",
     "ioredis": "^5.3.0",
     "@prisma/client": "^5.0.0",
     "sharp": "^0.32.0",
@@ -18,13 +18,14 @@
     "uuid": "^9.0.0",
     "canvas": "^2.11.2"
   },
-  "devDependencies": {
-    "@types/bull": "^4.10.0",
+    "devDependencies": {
+
     "@types/node": "^20.0.0",
     "@types/fluent-ffmpeg": "^2.1.0",
     "@types/uuid": "^9.0.0",
-    "@types/canvas": "^0.1.0",
     "tsx": "^3.12.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@types/archiver": "^6.0.3",
+    "@types/dotenv": "^8.2.0"
   }
 }

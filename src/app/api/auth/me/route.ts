@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Vérifier et décoder le token
-    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       userId: string;
       email: string;
       role: string;
@@ -83,7 +83,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Vérifier et décoder le token
-    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       userId: string;
       email: string;
       role: string;
@@ -96,6 +96,15 @@ export async function PUT(request: NextRequest) {
     // Vérifier que l'utilisateur existe
     const existingUser = await prisma.user.findUnique({
       where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        preferences: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!existingUser) {
@@ -121,11 +130,22 @@ export async function PUT(request: NextRequest) {
 
     // Fusionner les préférences existantes avec les nouvelles
     let updatedPreferences = existingUser.preferences as any;
+
     if (preferences) {
-      updatedPreferences = {
-        ...(updatedPreferences || {}),
-        ...preferences,
-      };
+      updatedPreferences = { ...(updatedPreferences || {}) };
+
+      // Traiter chaque préférence individuellement
+      Object.keys(preferences).forEach(key => {
+        const value = preferences[key as keyof typeof preferences];
+
+        if (value === null) {
+          // Si la valeur est null, supprimer la clé
+          delete updatedPreferences[key];
+        } else {
+          // Sinon, mettre à jour ou ajouter la clé
+          updatedPreferences[key] = value;
+        }
+      });
     }
 
     // Mettre à jour l'utilisateur

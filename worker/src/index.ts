@@ -115,12 +115,11 @@ const smartCropWorker = new Worker(
 
     try {
       // Use the smartCrop function from imageProcessor
-      const result = await imageProcessor.smartCrop({
+      const result = await imageProcessor.smartCrop(
         imageId,
         targetWidth,
-        targetHeight,
-        userId
-      })
+        targetHeight
+      )
 
       console.log(`Smart crop completed for ${imageId}`)
       return result
@@ -141,8 +140,43 @@ imageWorker.on('completed', (job: Job<ImageProcessingData> | undefined) => {
   console.log(`Image processing job ${job?.id} completed`)
 })
 
-imageWorker.on('failed', (job: Job<ImageProcessingData> | undefined, err) => {
+imageWorker.on('failed', async (job: Job<ImageProcessingData> | undefined, err) => {
   console.error(`Image processing job ${job?.id} failed:`, err.message)
+
+  // Mettre à jour le statut dans la base de données Prisma
+  if (job?.data?.variantId) {
+    try {
+      await prisma.imageVariant.update({
+        where: { id: job.data.variantId },
+        data: {
+          path: '',
+          size: 0,
+          width: 0,
+          height: 0,
+        }
+      });
+
+      // Récupérer l'ID du job Prisma depuis les données du job BullMQ
+      // Les données du job devraient contenir l'ID Prisma du job créé dans la BDD
+      const prismaJobId = (job as any).data?.prismaJobId;
+
+      if (prismaJobId) {
+        // Mettre à jour uniquement le job spécifique qui a échoué
+        await prisma.job.update({
+          where: { id: prismaJobId },
+          data: {
+            status: 'FAILED',
+            error: err.message,
+            completedAt: new Date()
+          }
+        });
+      } else {
+        console.warn('Aucun ID de job Prisma trouvé dans les données du job BullMQ');
+      }
+    } catch (updateError) {
+      console.error('Erreur lors de la mise à jour du statut en BDD:', updateError);
+    }
+  }
 })
 
 // Event listeners for zip worker
@@ -150,8 +184,30 @@ zipWorker.on('completed', (job) => {
   console.log(`Zip creation job ${job?.id} completed`)
 })
 
-zipWorker.on('failed', (job, err) => {
+zipWorker.on('failed', async (job, err) => {
   console.error(`Zip creation job ${job?.id} failed:`, err.message)
+
+  // Mettre à jour le statut dans la base de données Prisma
+  try {
+    // Récupérer l'ID du job Prisma depuis les données du job BullMQ
+    const prismaJobId = (job as any).data?.prismaJobId;
+
+    if (prismaJobId) {
+      // Mettre à jour le job spécifique qui a échoué
+      await prisma.job.update({
+        where: { id: prismaJobId },
+        data: {
+          status: 'FAILED',
+          error: err.message,
+          completedAt: new Date()
+        }
+      });
+    } else {
+      console.warn('Aucun ID de job Prisma trouvé dans les données du job ZIP BullMQ');
+    }
+  } catch (updateError) {
+    console.error('Erreur lors de la mise à jour du statut ZIP en BDD:', updateError);
+  }
 })
 
 // Event listeners for smart crop worker
@@ -159,8 +215,30 @@ smartCropWorker.on('completed', (job: Job<SmartCropData> | undefined) => {
   console.log(`Smart crop job ${job?.id} completed`)
 })
 
-smartCropWorker.on('failed', (job: Job<SmartCropData> | undefined, err) => {
+smartCropWorker.on('failed', async (job: Job<SmartCropData> | undefined, err) => {
   console.error(`Smart crop job ${job?.id} failed:`, err.message)
+
+  // Mettre à jour le statut dans la base de données Prisma
+  try {
+    // Récupérer l'ID du job Prisma depuis les données du job BullMQ
+    const prismaJobId = (job as any)?.data?.prismaJobId;
+
+    if (prismaJobId) {
+      // Mettre à jour le job spécifique qui a échoué
+      await prisma.job.update({
+        where: { id: prismaJobId },
+        data: {
+          status: 'FAILED',
+          error: err.message,
+          completedAt: new Date()
+        }
+      });
+    } else {
+      console.warn('Aucun ID de job Prisma trouvé dans les données du job Smart Crop BullMQ');
+    }
+  } catch (updateError) {
+    console.error('Erreur lors de la mise à jour du statut Smart Crop en BDD:', updateError);
+  }
 })
 
 // Graceful shutdown

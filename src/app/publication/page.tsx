@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { notifications } from '@/lib/notifications';
 
@@ -28,7 +28,7 @@ interface Publication {
 }
 
 export default function PublicationPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const [publications, setPublications] = useState<Publication[]>([]);
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +74,7 @@ export default function PublicationPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          publicationId: selectedPublication.id,
+          publicationIds: [selectedPublication.id],
         }),
       });
 

@@ -57,17 +57,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Créer la variante en base de données
-    const variant = await prisma.imageVariant.create({
+    // Créer d'abord le job dans la base de données pour tracking
+    const job = await prisma.job.create({
       data: {
-        filename: `${image.filename.split('.')[0]}_crop_${Date.now()}.${outputFormat}`,
-        path: '', // Sera mis à jour par le worker
-        width: cropArea.width,
-        height: cropArea.height,
-        size: 0, // Sera mis à jour par le worker
-        mimeType: `image/${outputFormat}`,
-        variantType: 'crop',
-        parameters: {
+        type: 'IMAGE_CROP',
+        status: 'PENDING',
+        data: {
+          imageId,
           cropArea,
           rotation,
           flipHorizontal,
@@ -75,7 +71,6 @@ export async function POST(request: NextRequest) {
           outputFormat,
           quality,
         },
-        imageId,
         userId,
       },
     });
@@ -83,7 +78,7 @@ export async function POST(request: NextRequest) {
     // Ajouter le job à la file d'attente pour le traitement asynchrone
     await imageQueue.add('process-crop', {
       imageId,
-      variantId: variant.id,
+      prismaJobId: job.id, // Inclure l'ID Prisma pour le tracking
       userId,
       operations: {
         crop: cropArea,
@@ -95,15 +90,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Le statut reste PENDING - le worker le passera à PROCESSING quand il commencera le travail
+
     return NextResponse.json(
       {
         message: 'Recadrage ajouté au traitement',
-        variant: {
-          id: variant.id,
-          variantType: variant.variantType,
-          width: variant.width,
-          height: variant.height,
-          createdAt: variant.createdAt,
+        job: {
+          id: job.id,
+          type: job.type,
+          status: job.status,
+          createdAt: job.createdAt,
         },
       },
       { status: 201 }

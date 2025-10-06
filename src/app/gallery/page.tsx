@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { GalleryGrid } from '@/components/gallery/GalleryGrid';
 import { GallerySidebar } from '@/components/gallery/GallerySidebar';
@@ -31,7 +31,7 @@ interface Gallery {
 }
 
 export default function GalleryPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const [selectedGallery, setSelectedGallery] = useState<Gallery | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320); // Largeur par défaut de la sidebar (320px = w-80)

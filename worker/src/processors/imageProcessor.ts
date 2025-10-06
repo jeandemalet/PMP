@@ -31,7 +31,7 @@ export interface CropOperation {
 
 export interface ImageProcessingData {
   imageId: string
-  variantId?: string
+  variantId?: string | undefined
   userId: string
   operations: CropOperation
 }

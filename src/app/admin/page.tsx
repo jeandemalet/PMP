@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 
 interface User {
@@ -41,7 +41,7 @@ interface SystemStats {
 }
 
 export default function AdminPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<SystemStats | null>(null);

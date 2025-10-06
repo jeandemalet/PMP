@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withAuth, AuthenticatedRequest, hasResourceAccess } from '@/lib/api-utils';
 import { z } from 'zod';
 
 // Schéma de validation pour la mise à jour d'une galerie
@@ -9,61 +10,53 @@ const updateGallerySchema = z.object({
   color: z.string().optional(),
 });
 
-// GET /api/galleries/[id] - Récupérer une galerie spécifique
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+// Handler interne pour récupérer une galerie (sans logique d'authentification)
+async function getGalleryHandler(
+  request: AuthenticatedRequest,
+  context?: { params: { id: string } }
 ) {
-  try {
-    // Récupérer l'ID utilisateur depuis les headers (ajouté par le middleware)
-    const userId = request.headers.get('x-user-id');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      );
-    }
-
-    const galleryId = params.id;
-
-    // Récupérer la galerie avec ses statistiques
-    const gallery = await prisma.gallery.findFirst({
-      where: {
-        id: galleryId,
-        userId,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        color: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            images: true,
-          },
-        },
-      },
-    });
-
-    if (!gallery) {
-      return NextResponse.json(
-        { error: 'Galerie non trouvée' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ gallery }, { status: 200 });
-  } catch (error) {
-    console.error('Erreur lors de la récupération de la galerie:', error);
+  if (!context?.params) {
     return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
+      { error: 'Paramètres manquants' },
+      { status: 400 }
     );
   }
+
+  const galleryId = context.params.id;
+
+  // Récupérer la galerie avec ses statistiques
+  const gallery = await prisma.gallery.findFirst({
+    where: {
+      id: galleryId,
+      userId: request.user.id, // Utilise l'utilisateur authentifié
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      color: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          images: true,
+        },
+      },
+    },
+  });
+
+  if (!gallery) {
+    return NextResponse.json(
+      { error: 'Galerie non trouvée' },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({ gallery }, { status: 200 });
 }
+
+// GET /api/galleries/[id] - Récupérer une galerie spécifique (avec authentification HOF)
+export const GET = withAuth(getGalleryHandler);
 
 // PUT /api/galleries/[id] - Mettre à jour une galerie
 export async function PUT(

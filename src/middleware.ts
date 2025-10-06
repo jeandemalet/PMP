@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
 
   try {
     // Vérifier le token
-    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       userId: string;
       email: string;
       role: string;

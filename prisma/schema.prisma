@@ -87,8 +87,8 @@ model Image {
   // Relations
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  galleryId   String
-  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  galleryId   String?
+  gallery     Gallery?  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   publications PublicationImage[]
   variants    ImageVariant[]
 
@@ -110,8 +110,7 @@ model ImageVariant {
   // Relations
   imageId     String
   image       Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Note: L'utilisateur est accessible via image.user, pas besoin de relation directe
 
   @@map("image_variants")
 }

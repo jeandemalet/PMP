@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { fetchPublications, createPublication, reorderPublicationImages } from '@/lib/api';
 import { notifications } from '@/lib/notifications';
@@ -42,7 +42,7 @@ interface SortableImage {
 }
 
 export default function SortPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [sortableImages, setSortableImages] = useState<SortableImage[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);

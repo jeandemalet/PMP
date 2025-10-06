@@ -57,8 +57,13 @@ test.describe('Galerie - Tests End-to-End', () => {
     await page.hover('text=Galerie à supprimer');
 
     // Cliquer sur le bouton supprimer (×)
-    page.on('dialog', dialog => dialog.accept());
     await page.click('button:has-text("×")');
+
+    // Attendre que le modal de confirmation apparaisse
+    await expect(page.locator('text=Confirmer la suppression')).toBeVisible();
+
+    // Cliquer sur le bouton "Confirmer" du modal personnalisé
+    await page.click('button:has-text("Confirmer")');
 
     // Vérifier que la galerie a été supprimée
     await expect(page.locator('text=Galerie à supprimer')).not.toBeVisible();

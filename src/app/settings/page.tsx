@@ -1,25 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { notifications } from '@/lib/notifications';
 
+// Interface personnalisée pour éviter les conflits de types Prisma
 interface User {
   id: string;
   email: string;
   name: string | null;
   role: 'USER' | 'ADMIN';
-  preferences?: {
+  preferences: {
     theme?: 'light' | 'dark' | 'auto';
     language?: 'fr' | 'en' | 'es';
     notifications?: boolean;
-  };
+  } | null;
   createdAt: string;
 }
 
 export default function SettingsPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -39,9 +40,9 @@ export default function SettingsPage() {
         email: user.email || '',
       });
       setPreferences({
-        theme: user.preferences?.theme || 'auto',
-        language: user.preferences?.language || 'fr',
-        notifications: user.preferences?.notifications ?? true,
+        theme: (user as any).preferences?.theme || 'auto',
+        language: (user as any).preferences?.language || 'fr',
+        notifications: (user as any).preferences?.notifications ?? true,
       });
       setIsLoading(false);
     }
@@ -73,8 +74,8 @@ export default function SettingsPage() {
 
       if (response.ok) {
         notifications.success('Paramètres mis à jour avec succès !');
-        // Mettre à jour les informations utilisateur dans le store
-        useAuthStore.getState().checkAuth();
+        // Recharger les données utilisateur
+        window.location.reload();
       } else {
         const error = await response.json();
         notifications.error(`Erreur lors de la mise à jour: ${error.error}`);

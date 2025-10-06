@@ -14,4 +14,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  esbuild: {
+    target: 'node18',
+  },
+  optimizeDeps: {
+    include: ['vitest'],
+  },
 });

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuthStore } from '@/lib/auth-store';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 
 interface Publication {
@@ -35,7 +35,7 @@ interface CalendarDay {
 }
 
 export default function CalendarPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const [publications, setPublications] = useState<Publication[]>([]);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -77,7 +77,22 @@ export default function CalendarPage() {
     }
   };
 
-  // Générer les jours du calendrier (vue mensuelle)
+  // Optimisation : Pré-traitement des publications par date avec useMemo
+  const publicationsByDate = useMemo(() => {
+    const map = new Map<string, Publication[]>();
+    publications.forEach(pub => {
+      if (pub.scheduledAt) {
+        const dateKey = new Date(pub.scheduledAt).toISOString().split('T')[0];
+        if (!map.has(dateKey)) {
+          map.set(dateKey, []);
+        }
+        map.get(dateKey)!.push(pub);
+      }
+    });
+    return map;
+  }, [publications]);
+
+  // Générer les jours du calendrier (vue mensuelle) - VERSION OPTIMISÉE
   const generateMonthDays = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -91,11 +106,9 @@ export default function CalendarPage() {
     const current = new Date(startDate);
 
     for (let i = 0; i < 42; i++) {
-      const dayPublications = publications.filter(pub => {
-        if (!pub.scheduledAt) return false;
-        const pubDate = new Date(pub.scheduledAt);
-        return pubDate.toDateString() === current.toDateString();
-      });
+      // Recherche O(1) au lieu de filtrage O(n)
+      const dateKey = current.toISOString().split('T')[0];
+      const dayPublications = publicationsByDate.get(dateKey) || [];
 
       days.push({
         date: new Date(current),
@@ -110,7 +123,7 @@ export default function CalendarPage() {
     return days;
   };
 
-  // Générer les jours du calendrier (vue hebdomadaire)
+  // Générer les jours du calendrier (vue hebdomadaire) - VERSION OPTIMISÉE
   const generateWeekDays = (date: Date) => {
     const startOfWeek = new Date(date);
     const dayOfWeek = startOfWeek.getDay();
@@ -120,11 +133,9 @@ export default function CalendarPage() {
     const current = new Date(startOfWeek);
 
     for (let i = 0; i < 7; i++) {
-      const dayPublications = publications.filter(pub => {
-        if (!pub.scheduledAt) return false;
-        const pubDate = new Date(pub.scheduledAt);
-        return pubDate.toDateString() === current.toDateString();
-      });
+      // Recherche O(1) au lieu de filtrage O(n)
+      const dateKey = current.toISOString().split('T')[0];
+      const dayPublications = publicationsByDate.get(dateKey) || [];
 
       days.push({
         date: new Date(current),

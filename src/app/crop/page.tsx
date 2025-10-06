@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@/lib/auth-store';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/hooks/auth';
+import { useJobStatus } from '@/lib/hooks/useJobStatus';
 import { Button } from '@/components/ui/button';
 import { CropCanvas } from '@/components/crop/CropCanvas';
 import { CropFilmstrip } from '@/components/crop/CropFilmstrip';
@@ -27,135 +29,75 @@ interface CropArea {
 }
 
 export default function CropPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
+  const queryClient = useQueryClient();
 
-  const [images, setImages] = useState<Image[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [cropArea, setCropArea] = useState<CropArea>({ x: 0, y: 0, width: 200, height: 200 });
-  const [isLoading, setIsLoading] = useState(true);
   const [cropMode, setCropMode] = useState<'manual' | 'auto'>('manual');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<{
-    status: string;
-    progress: number;
-    result?: any;
-    error?: string;
-  } | null>(null);
 
-  // Cache pour éviter les requêtes répétées
-  const galleryCache = new Map();
-
-  // Récupérer les images de la galerie avec pagination intelligente et cache
-  const fetchImages = async (page: number = 1, pageSize: number = 20) => {
-    if (!imageId) return;
-
-    setIsLoading(true);
-    try {
-      // Récupérer l'ID de la galerie depuis l'URL ou l'API
-      const imageResponse = await fetch(`/api/images/${imageId}`);
-      if (imageResponse.ok) {
-        const imageData = await imageResponse.json();
-
-        // Récupérer les images de la même galerie avec pagination
-        const galleryId = imageData.image?.galleryId;
-        if (galleryId) {
-          // Vérifier le cache d'abord
-          const cacheKey = `${galleryId}-${page}-${pageSize}`;
-          if (galleryCache.has(cacheKey)) {
-            const cachedData = galleryCache.get(cacheKey);
-            setImages(cachedData.images || []);
-
-            // Trouver l'index de l'image actuelle
-            const currentIndex = cachedData.images?.findIndex((img: Image) => img.id === imageId) || 0;
-            setCurrentImageIndex(currentIndex);
-            setIsLoading(false);
-            return;
-          }
-
-          const response = await fetch(`/api/images?galleryId=${galleryId}&page=${page}&limit=${pageSize}`);
-          if (response.ok) {
-            const data = await response.json();
-
-            // Mettre en cache les données
-            galleryCache.set(cacheKey, data);
-
-            setImages(data.images || []);
-
-            // Trouver l'index de l'image actuelle
-            const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
-            setCurrentImageIndex(currentIndex);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des images:', error);
-    } finally {
-      setIsLoading(false);
+  // Utiliser le hook useJobStatus pour le suivi unifié des jobs
+  const { jobStatus, isProcessing, isCompleted, isFailed, progress } = useJobStatus(currentJobId, {
+    enabled: !!currentJobId,
+    pollingInterval: 2000, // Polling toutes les 2 secondes
+    onComplete: (result) => {
+      notifications.success('Recadrage automatique terminé avec succès !');
+      // Invalider et recharger les données avec TanStack Query
+      queryClient.invalidateQueries({ queryKey: ['gallery-images', currentImageData?.image?.galleryId] });
+      setCurrentJobId(null);
+    },
+    onError: (error) => {
+      notifications.error(`Échec du recadrage automatique: ${error}`);
+      setCurrentJobId(null);
     }
-  };
+  });
 
+  // Récupérer les données de l'image actuelle pour obtenir le galleryId
+  const { data: currentImageData, isLoading: isLoadingCurrentImage } = useQuery({
+    queryKey: ['current-image', imageId],
+    queryFn: async () => {
+      if (!imageId) throw new Error('No image ID provided');
+      const response = await fetch(`/api/images/${imageId}`);
+      if (!response.ok) throw new Error('Failed to fetch image');
+      return response.json();
+    },
+    enabled: !!imageId && isAuthenticated,
+  });
+
+  // Récupérer les images de la galerie avec TanStack Query
+  const { data: galleryData, isLoading: isLoadingGallery } = useQuery({
+    queryKey: ['gallery-images', currentImageData?.image?.galleryId],
+    queryFn: async () => {
+      if (!currentImageData?.image?.galleryId) throw new Error('No gallery ID available');
+      const response = await fetch(`/api/images?galleryId=${currentImageData.image.galleryId}&page=1&limit=50`);
+      if (!response.ok) throw new Error('Failed to fetch gallery images');
+      return response.json();
+    },
+    enabled: !!currentImageData?.image?.galleryId && isAuthenticated,
+  });
+
+  // Mettre à jour les images et l'index quand les données changent
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchImages();
+    if (galleryData?.images) {
+      const images = galleryData.images;
+      const currentIndex = images.findIndex((img: Image) => img.id === imageId) || 0;
+      setCurrentImageIndex(currentIndex);
     }
-  }, [isAuthenticated, imageId]);
+  }, [galleryData, imageId]);
 
+  const images = galleryData?.images || [];
   const currentImage = images[currentImageIndex];
+  const isLoading = isLoadingCurrentImage || isLoadingGallery;
 
-  // Polling pour suivre l'état du job Smart Crop
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
 
-    if (currentJobId && isProcessing) {
-      interval = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/export?jobId=${currentJobId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setJobStatus({
-              status: data.status,
-              progress: data.progress || 0,
-              result: data.result,
-              error: data.error,
-            });
-
-            // Si le job est terminé
-            if (data.status === 'COMPLETED') {
-              setIsProcessing(false);
-              setCurrentJobId(null);
-              notifications.success('Recadrage automatique terminé avec succès !');
-
-              // Recharger les images pour voir la nouvelle variante
-              if (currentImage) {
-                fetchImages();
-              }
-            } else if (data.status === 'FAILED') {
-              setIsProcessing(false);
-              setCurrentJobId(null);
-              notifications.error(`Échec du recadrage automatique: ${data.error || 'Erreur inconnue'}`);
-            }
-          }
-        } catch (error) {
-          console.error('Erreur lors du polling du job:', error);
-        }
-      }, 2000); // Polling toutes les 2 secondes
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [currentJobId, isProcessing, currentImage]);
 
   // Gestionnaire pour le Smart Crop via API avec feedback utilisateur
   const handleSmartCrop = async () => {
     if (!currentImage) return;
 
-    setIsProcessing(true);
     try {
       const response = await fetch('/api/crop/smart', {
         method: 'POST',
@@ -173,14 +115,11 @@ export default function CropPage() {
         const data = await response.json();
         console.log('Smart crop démarré:', data);
 
+        // Démarrer le polling en stockant l'ID du job
+        setCurrentJobId(data.jobId);
+
         // Afficher une notification de succès
         notifications.success('Recadrage intelligent démarré ! Vous serez notifié quand il sera terminé.');
-
-        // TODO: Implémenter le polling pour suivre l'état du job
-        // Pour l'instant, afficher un message informatif
-        setTimeout(() => {
-          notifications.success('Le recadrage automatique peut prendre quelques minutes selon la taille de l\'image.');
-        }, 2000);
 
       } else {
         const error = await response.json();
@@ -190,15 +129,12 @@ export default function CropPage() {
     } catch (error) {
       console.error('Erreur de connexion:', error);
       notifications.error('Erreur de connexion lors du recadrage automatique');
-    } finally {
-      setIsProcessing(false);
     }
   };
 
   const handleCrop = async () => {
     if (!currentImage) return;
 
-    setIsProcessing(true);
     try {
       const response = await fetch('/api/crop', {
         method: 'POST',
@@ -219,14 +155,14 @@ export default function CropPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Recadrage créé:', data);
-        // TODO: Afficher un message de succès et mettre à jour l'interface
+        notifications.success('Recadrage appliqué avec succès !');
       } else {
         console.error('Erreur lors du recadrage');
+        notifications.error('Erreur lors de l\'application du recadrage');
       }
     } catch (error) {
       console.error('Erreur de connexion:', error);
-    } finally {
-      setIsProcessing(false);
+      notifications.error('Erreur de connexion lors du recadrage');
     }
   };
 

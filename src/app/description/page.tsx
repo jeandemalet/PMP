@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@/lib/auth-store';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 
 interface Image {
@@ -32,16 +33,13 @@ interface Metadata {
 }
 
 export default function DescriptionPage() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
+  const queryClient = useQueryClient();
 
-  const [images, setImages] = useState<Image[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [metadata, setMetadata] = useState<Metadata | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -50,116 +48,67 @@ export default function DescriptionPage() {
     caption: '',
   });
 
-  // Debounce timer pour la sauvegarde automatique
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  // Récupérer les données de l'image actuelle pour obtenir le galleryId
+  const { data: currentImageData, isLoading: isLoadingCurrentImage } = useQuery({
+    queryKey: ['current-image', imageId],
+    queryFn: async () => {
+      if (!imageId) throw new Error('No image ID provided');
+      const response = await fetch(`/api/images/${imageId}`);
+      if (!response.ok) throw new Error('Failed to fetch image');
+      return response.json();
+    },
+    enabled: !!imageId && isAuthenticated,
+  });
 
-  // Cache pour éviter les requêtes répétées
-  const galleryCache = new Map();
+  // Récupérer les images de la galerie avec TanStack Query
+  const { data: galleryData, isLoading: isLoadingGallery } = useQuery({
+    queryKey: ['gallery-images', currentImageData?.image?.galleryId],
+    queryFn: async () => {
+      if (!currentImageData?.image?.galleryId) throw new Error('No gallery ID available');
+      const response = await fetch(`/api/images?galleryId=${currentImageData.image.galleryId}&page=1&limit=50`);
+      if (!response.ok) throw new Error('Failed to fetch gallery images');
+      return response.json();
+    },
+    enabled: !!currentImageData?.image?.galleryId && isAuthenticated,
+  });
 
-  // Récupérer les images de la galerie avec pagination intelligente et cache
-  const fetchImages = async (page: number = 1, pageSize: number = 20) => {
-    if (!imageId) return;
-
-    setIsLoading(true);
-    try {
-      // Récupérer l'ID de la galerie depuis l'URL ou l'API
-      const imageResponse = await fetch(`/api/images/${imageId}`);
-      if (imageResponse.ok) {
-        const imageData = await imageResponse.json();
-
-        // Récupérer les images de la même galerie avec pagination
-        const galleryId = imageData.image?.galleryId;
-        if (galleryId) {
-          // Vérifier le cache d'abord
-          const cacheKey = `${galleryId}-${page}-${pageSize}`;
-          if (galleryCache.has(cacheKey)) {
-            const cachedData = galleryCache.get(cacheKey);
-            setImages(cachedData.images || []);
-
-            // Trouver l'index de l'image actuelle
-            const currentIndex = cachedData.images?.findIndex((img: Image) => img.id === imageId) || 0;
-            setCurrentImageIndex(currentIndex);
-            setIsLoading(false);
-            return;
-          }
-
-          const response = await fetch(`/api/images?galleryId=${galleryId}&page=${page}&limit=${pageSize}`);
-          if (response.ok) {
-            const data = await response.json();
-
-            // Mettre en cache les données
-            galleryCache.set(cacheKey, data);
-
-            setImages(data.images || []);
-
-            // Trouver l'index de l'image actuelle
-            const currentIndex = data.images?.findIndex((img: Image) => img.id === imageId) || 0;
-            setCurrentImageIndex(currentIndex);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des images:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Cache pour les métadonnées
-  const metadataCache = new Map();
-
-  // Récupérer les métadonnées de l'image actuelle avec cache
-  const fetchMetadata = async (imageId: string) => {
-    try {
-      // Vérifier le cache d'abord
-      if (metadataCache.has(imageId)) {
-        const cachedMetadata = metadataCache.get(imageId);
-        setMetadata(cachedMetadata);
-        setFormData({
-          title: cachedMetadata.title || '',
-          description: cachedMetadata.description || '',
-          tags: cachedMetadata.tags || '',
-          alt: cachedMetadata.alt || '',
-          caption: cachedMetadata.caption || '',
-        });
-        return;
-      }
-
+  // Récupérer les métadonnées de l'image actuelle avec TanStack Query
+  const { data: metadata, isLoading: isLoadingMetadata } = useQuery({
+    queryKey: ['image-metadata', imageId],
+    queryFn: async () => {
+      if (!imageId) throw new Error('No image ID provided');
       const response = await fetch(`/api/images/${imageId}/metadata`);
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) throw new Error('Failed to fetch metadata');
+      return response.json();
+    },
+    enabled: !!imageId && isAuthenticated,
+  });
 
-        // Mettre en cache les métadonnées
-        metadataCache.set(imageId, data.metadata);
-
-        setMetadata(data.metadata);
-        setFormData({
-          title: data.metadata.title || '',
-          description: data.metadata.description || '',
-          tags: data.metadata.tags || '',
-          alt: data.metadata.alt || '',
-          caption: data.metadata.caption || '',
-        });
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des métadonnées:', error);
-    }
-  };
-
+  // Mettre à jour les images et l'index quand les données changent
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchImages();
+    if (galleryData?.images) {
+      const images = galleryData.images;
+      const currentIndex = images.findIndex((img: Image) => img.id === imageId) || 0;
+      setCurrentImageIndex(currentIndex);
     }
-  }, [isAuthenticated, imageId]);
+  }, [galleryData, imageId]);
 
+  // Mettre à jour le formulaire quand les métadonnées changent
   useEffect(() => {
-    if (images.length > 0 && currentImageIndex < images.length) {
-      const currentImage = images[currentImageIndex];
-      fetchMetadata(currentImage.id);
+    if (metadata?.metadata) {
+      setFormData({
+        title: metadata.metadata.title || '',
+        description: metadata.metadata.description || '',
+        tags: metadata.metadata.tags || '',
+        alt: metadata.metadata.alt || '',
+        caption: metadata.metadata.caption || '',
+      });
     }
-  }, [currentImageIndex, images]);
+  }, [metadata]);
 
+  const images = galleryData?.images || [];
   const currentImage = images[currentImageIndex];
+  const isLoading = isLoadingCurrentImage || isLoadingGallery || isLoadingMetadata;
 
   const handleSave = async () => {
     if (!currentImage) return;
@@ -175,7 +124,8 @@ export default function DescriptionPage() {
       });
 
       if (response.ok) {
-        await fetchMetadata(currentImage.id);
+        // Invalider et recharger les métadonnées avec TanStack Query
+        queryClient.invalidateQueries({ queryKey: ['image-metadata', currentImage.id] });
         console.log('Métadonnées sauvegardées');
       } else {
         console.error('Erreur lors de la sauvegarde');

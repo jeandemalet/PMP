@@ -87,19 +87,35 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Récupérer l'ID utilisateur depuis les headers (ajouté par le middleware)
-    const currentUserId = request.headers.get('x-user-id');
+    // Récupérer le token depuis les cookies pour extraire impersonatedBy
+    const token = request.cookies.get('auth-token')?.value;
 
-    if (!currentUserId) {
+    if (!token) {
       return NextResponse.json(
-        { error: 'Non authentifié' },
+        { error: 'Token non trouvé' },
         { status: 401 }
       );
     }
 
-    // Récupérer les informations de l'utilisateur actuel
-    const currentUser = await prisma.user.findUnique({
-      where: { id: currentUserId },
+    // Décoder le token pour récupérer impersonatedBy
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      userId: string;
+      email: string;
+      role: string;
+      impersonated?: boolean;
+      impersonatedBy?: string;
+    };
+
+    if (!decoded.impersonatedBy) {
+      return NextResponse.json(
+        { error: 'Aucune impersonation en cours' },
+        { status: 400 }
+      );
+    }
+
+    // Récupérer les informations de l'administrateur d'origine
+    const adminUser = await prisma.user.findUnique({
+      where: { id: decoded.impersonatedBy },
       select: {
         id: true,
         email: true,
@@ -108,19 +124,19 @@ export async function DELETE(
       },
     });
 
-    if (!currentUser) {
+    if (!adminUser) {
       return NextResponse.json(
-        { error: 'Utilisateur non trouvé' },
+        { error: 'Administrateur d\'origine non trouvé' },
         { status: 404 }
       );
     }
 
-    // Créer un token JWT pour revenir à l'utilisateur original (admin)
-    const token = jwt.sign(
+    // Créer un token JWT pour revenir à l'administrateur d'origine
+    const newToken = jwt.sign(
       {
-        userId: currentUser.id,
-        email: currentUser.email,
-        role: currentUser.role,
+        userId: adminUser.id,
+        email: adminUser.email,
+        role: adminUser.role,
         impersonated: false,
       },
       process.env.JWT_SECRET!,
@@ -129,9 +145,9 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        message: `Reconnecté en tant qu'admin ${currentUser.name || currentUser.email}`,
-        user: currentUser,
-        token,
+        message: `Reconnecté en tant qu'admin ${adminUser.name || adminUser.email}`,
+        user: adminUser,
+        token: newToken,
       },
       { status: 200 }
     );

@@ -5,62 +5,53 @@
 # 1. Chemin complet vers le dossier de votre projet
 $projetDirectory = "$env:USERPROFILE\Desktop\PMP"
 
-# 2. Nom du sous-dossier qui contiendra les exports (sera créé dans $projetDirectory)
+# 2. Nom du sous-dossier qui contiendra les exports (sera créé dans le dossier du projet)
 $outputSubfolderName = "copypaste export"
 
 
 # =============================================================================
-# --- PARAMÈTRES TECHNIQUES (Adapter si besoin) ---
+# --- PARAMÈTRES TECHNIQUES (Optimisés pour l'analyse par IA) ---
 # =============================================================================
 
-# Extensions de fichier à INCLURE (contenu complet)
+# Extensions de fichier à INCLURE (focus sur la logique et la structure)
 $extensionsToInclude = @(
     "*.js", "*.ts", "*.jsx", "*.tsx", "*.mjs", "*.cjs", # JavaScript/TypeScript
-    "*.html", "*.css", "*.scss", "*.svg",              # Web Frontend
+    "*.html",                                         # Structure Web
     "*.json", "*.md",                                 # Configuration & Docs
     "*.prisma",                                       # Prisma Schema
     "Dockerfile", "*.yml", "*.yaml"                   # Docker & CI/CD
 )
 
-# Dossiers/fichiers à EXCLURE COMPLÈTEMENT de l'export
-$pathsToExcludeCompletely = @(
+# Dossiers à EXCLURE COMPLÈTEMENT de l'export.
+$foldersToExcludeCompletely = @(
     # --- Données utilisateur et fichiers générés par l'application ---
-    "uploads",
-    "archives",
+    "uploads", "archives",
 
     # --- Répertoires de dépendances et de build (très volumineux) ---
-    "node_modules",
-    ".next",
-    "dist",
-    "build",
+    "node_modules", ".next", "dist", "build",
 
     # --- Contrôle de version et configuration de l'IDE ---
-    ".git",
-    ".vscode",
-    ".idea",
+    ".git", ".vscode", ".idea",
 
     # --- Fichiers générés par les outils et caches ---
-    "__pycache__",
-    "prisma\migrations",
-    "playwright-report",
-    "test-results",
-    ".eslintcache",
-    "coverage",
+    "__pycache__", "prisma\migrations", "playwright-report", "test-results",
+    ".eslintcache", "coverage",
 
     # --- Fichiers système et temporaires ---
     ".DS_Store",
-    "*.log",
-    "*.tmp",
-    "*.db",
 
-    # --- Fichiers sensibles ou de lock (inutiles pour l'analyse du code) ---
-    ".env*",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    "package-lock.json",
-
-    # --- IMPORTANT : Exclure le dossier d'export lui-même pour éviter les boucles ---
+    # --- IMPORTANT : Exclure le dossier d'export lui-même ---
     $outputSubfolderName
+)
+
+# Fichiers spécifiques à exclure par nom (incluant les fichiers inutiles identifiés)
+$filesToExcludeCompletely = @(
+    "*.log", "*.tmp", "*.db",
+    ".env*", "pnpm-lock.yaml", "yarn.lock", "package-lock.json",
+    
+    # --- FICHIERS INUTILES POUR L'ANALYSE ---
+    "next-env.d.ts",
+    "components.json"
 )
 
 
@@ -81,33 +72,68 @@ New-Item -Path $outputDirectory -ItemType Directory -Force -ErrorAction Silently
 $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $outputFile = Join-Path -Path $outputDirectory -ChildPath "export_PMP_code_$($timestamp).txt"
 
+# Pré-construire les chemins complets des dossiers à exclure pour optimiser le filtrage
+$fullPathFoldersToExclude = $foldersToExcludeCompletely | ForEach-Object { (Join-Path -Path $projetDirectory -ChildPath $_) + '\' }
+
 # --- Exécution ---
 $streamWriter = $null
 try {
     $streamWriter = New-Object System.IO.StreamWriter($outputFile, $false, [System.Text.Encoding]::UTF8)
     $startTime = Get-Date
 
-    Write-Host "Début de l'exportation du projet '$projetDirectory'..." -ForegroundColor Green
+    Write-Host "Début de l'exportation optimisée du projet '$projetDirectory'..." -ForegroundColor Green
     $streamWriter.WriteLine("--- Export du projet '$($projetDirectory)' | Généré le $(Get-Date) ---")
 
-    # Récupération des fichiers en excluant directement les dossiers non pertinents pour la performance
-    $allFiles = Get-ChildItem -Path $projetDirectory -Recurse -File -Include $extensionsToInclude -Exclude $pathsToExcludeCompletely -ErrorAction SilentlyContinue
-    $includedCount = $allFiles.Count
-    Write-Host "Analyse et inclusion de $($includedCount) fichier(s) pertinent(s)..."
+    # Récupère tous les fichiers, PUIS filtre pour éviter de traverser les gros dossiers.
+    Write-Host "Récupération de la liste des fichiers..."
+    $allFiles = Get-ChildItem -Path $projetDirectory -Recurse -File -Exclude $filesToExcludeCompletely -ErrorAction SilentlyContinue
+    
+    Write-Host "Filtrage de $($allFiles.Count) fichiers trouvés..."
+    $filteredFiles = $allFiles | Where-Object {
+        $file = $_
+        $isExcluded = $false
+        foreach ($excludedPath in $fullPathFoldersToExclude) {
+            if ($file.FullName.StartsWith($excludedPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $isExcluded = $true
+                break
+            }
+        }
+        -not $isExcluded
+    } | Where-Object {
+        $file = $_
+        $extensionMatch = $false
+        foreach($ext in $extensionsToInclude) {
+            if($file.Name -like $ext) {
+                $extensionMatch = $true
+                break
+            }
+        }
+        $extensionMatch
+    }
 
-    # Traitement des fichiers
-    foreach ($file in $allFiles) {
+    $includedCount = $filteredFiles.Count
+    Write-Host "Inclusion de $($includedCount) fichier(s) pertinent(s)..."
+
+    # Traitement des fichiers filtrés
+    foreach ($file in $filteredFiles) {
         $relativePath = $file.FullName.Substring($projetDirectory.Length + 1)
         
+        # --- SÉPARATEUR OPTIMISÉ ---
         $streamWriter.WriteLine()
         $streamWriter.WriteLine("====================================================================")
         $streamWriter.WriteLine("--- Fichier: $relativePath")
         $streamWriter.WriteLine("====================================================================")
-        $streamWriter.WriteLine()
+        
         try {
             $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
-            $streamWriter.WriteLine($content)
+            
+            # --- COMPRESSION DES LIGNES VIDES ---
+            # Remplace 3 sauts de ligne ou plus par exactement 2 (garde une ligne vide)
+            $compactedContent = $content -replace '(?m)(\r?\n){3,}', "`r`n`r`n"
+            
+            $streamWriter.WriteLine($compactedContent)
         } catch {
+            $streamWriter.WriteLine()
             $streamWriter.WriteLine("/!\\ ERREUR DE LECTURE : $($_.Exception.Message) /!\\")
         }
     }

@@ -134,7 +134,7 @@ test.describe('Organisation et Tri - Tests End-to-End', () => {
     await page.click('button:has-text("Nouvelle publication")');
 
     // Sélectionner la publication
-    await page.click('text=Nouvelle publication");
+    await page.click('text=Nouvelle publication');
 
     // Vérifier la présence des indicateurs de position
     await expect(page.locator('text=Glissez pour réorganiser')).toBeVisible();

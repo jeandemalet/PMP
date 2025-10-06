@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { notifications } from '@/lib/notifications';
+import { useAuth } from '@/lib/hooks/auth';
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,61 +12,30 @@ export default function LoginPage() {
     password: '',
     name: '',
   });
+
+  const { login, signup, isLoggingIn, isSigningUp } = useAuth();
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     try {
       if (isLogin) {
         // Mode connexion
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-          }),
+        await login({
+          email: formData.email,
+          password: formData.password,
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          setError(data.error || 'Erreur de connexion');
-          return;
-        }
-
-        // Connexion réussie - redirection automatique via middleware
-        router.push('/gallery');
       } else {
         // Mode inscription
-        const response = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-          }),
+        await signup({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          setError(data.error || 'Erreur lors de l\'inscription');
-          return;
-        }
-
         // Inscription réussie - afficher message de succès et basculer en mode connexion
-        setError('');
         notifications.success('Compte créé avec succès ! Veuillez vous connecter.');
         setIsLogin(true);
 
@@ -78,9 +47,7 @@ export default function LoginPage() {
         });
       }
     } catch (err) {
-      setError('Erreur de connexion au serveur');
-    } finally {
-      setIsLoading(false);
+      setError(err instanceof Error ? err.message : 'Erreur de connexion au serveur');
     }
   };
 
@@ -174,10 +141,10 @@ export default function LoginPage() {
           <div>
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoggingIn || isSigningUp}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              {isLoading
+              {(isLoggingIn || isSigningUp)
                 ? 'Chargement...'
                 : isLogin
                 ? 'Se connecter'
