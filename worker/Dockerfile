@@ -1,6 +1,9 @@
 # Utiliser Node.js 20 Alpine comme image de base
 FROM node:20-alpine
 
+# Installer les dépendances système pour node-canvas AVANT npm install
+RUN apk add --no-cache build-base g++ cairo-dev jpeg-dev pango-dev giflib-dev
+
 # Définir le répertoire de travail
 WORKDIR /app
 

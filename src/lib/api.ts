@@ -98,6 +98,20 @@ export const createPublication = async (data: { name: string; description?: stri
   return response.json();
 };
 
+export const reorderPublicationImages = async (publicationId: string, imageOrders: Array<{ imageId: string; position: number }>) => {
+  const response = await fetch(`/api/publications/${publicationId}/reorder`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ imageOrders }),
+  });
+  if (!response.ok) {
+    throw new Error('Erreur lors de la réorganisation des images');
+  }
+  return response.json();
+};
+
 // API pour l'export
 export const startExport = async (data: {
   publicationIds?: string[];

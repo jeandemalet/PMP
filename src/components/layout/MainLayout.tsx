@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
+import { useOnClickOutside } from '@/lib/hooks';
 import { Button } from '@/components/ui/button';
 
 interface MainLayoutProps {
@@ -15,6 +16,11 @@ export function MainLayout({ children }: MainLayoutProps) {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+
+  // Hook pour fermer le menu profil au clic extérieur
+  const profileMenuRef = useOnClickOutside<HTMLDivElement>(() => {
+    setIsProfileMenuOpen(false);
+  });
 
   // Gestionnaire pour la déconnexion
   const handleLogout = async () => {
@@ -99,7 +105,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             {/* Profil et paramètres - Droite */}
             <div className="flex items-center space-x-4">
               {/* Menu profil */}
-              <div className="relative">
+              <div className="relative" ref={profileMenuRef}>
                 <Button
                   variant="ghost"
                   size="sm"

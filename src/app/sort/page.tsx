@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
+import { fetchPublications, createPublication, reorderPublicationImages } from '@/lib/api';
+import { notifications } from '@/lib/notifications';
 
 interface Publication {
   id: string;
@@ -40,39 +43,54 @@ interface SortableImage {
 
 export default function SortPage() {
   const { user, isAuthenticated } = useAuthStore();
-  const [publications, setPublications] = useState<Publication[]>([]);
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [sortableImages, setSortableImages] = useState<SortableImage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [sortType, setSortType] = useState<'manual' | 'chronological' | 'random' | 'interlaced'>('manual');
+  const [isSaving, setIsSaving] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Récupérer les publications
-  const fetchPublications = async () => {
-    try {
-      const response = await fetch('/api/publications');
-      if (response.ok) {
-        const data = await response.json();
-        setPublications(data.publications);
-        // Sélectionner la première publication par défaut
-        if (data.publications.length > 0 && !selectedPublication) {
-          setSelectedPublication(data.publications[0]);
-          setSortableImages(data.publications[0].images);
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des publications:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Utilisation de TanStack Query pour récupérer les publications
+  const { data: publicationsData, isLoading, error } = useQuery({
+    queryKey: ['publications'],
+    queryFn: fetchPublications,
+    enabled: isAuthenticated,
+  });
 
+  const publications = publicationsData?.publications || [];
+
+  // Sélectionner automatiquement la première publication quand les données sont chargées
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchPublications();
+    if (publications.length > 0 && !selectedPublication) {
+      setSelectedPublication(publications[0]);
+      setSortableImages(publications[0].images);
     }
-  }, [isAuthenticated]);
+  }, [publications, selectedPublication]);
+
+  // Mutation pour créer une publication
+  const createPublicationMutation = useMutation({
+    mutationFn: createPublication,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] });
+      notifications.success('Publication créée avec succès');
+    },
+    onError: (error: Error) => {
+      notifications.error(error.message || 'Erreur lors de la création de la publication');
+    },
+  });
+
+  // Mutation pour réorganiser les images
+  const reorderImagesMutation = useMutation({
+    mutationFn: ({ publicationId, imageOrders }: { publicationId: string; imageOrders: Array<{ imageId: string; position: number }> }) =>
+      reorderPublicationImages(publicationId, imageOrders),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] });
+      notifications.success('Ordre sauvegardé avec succès');
+    },
+    onError: (error: Error) => {
+      notifications.error(error.message || 'Erreur lors de la sauvegarde de l\'ordre');
+    },
+  });
 
   const handlePublicationSelect = (publication: Publication) => {
     setSelectedPublication(publication);
@@ -183,56 +201,25 @@ export default function SortPage() {
     setSortableImages(updatedImages);
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = () => {
     if (!selectedPublication) return;
 
-    setIsSaving(true);
-    try {
-      const imageOrders = sortableImages.map((img, index) => ({
-        imageId: img.image.id,
-        position: index,
-      }));
+    const imageOrders = sortableImages.map((img, index) => ({
+      imageId: img.image.id,
+      position: index,
+    }));
 
-      const response = await fetch(`/api/publications/${selectedPublication.id}/reorder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ imageOrders }),
-      });
-
-      if (response.ok) {
-        await fetchPublications(); // Recharger les publications
-        console.log('Ordre sauvegardé');
-      } else {
-        console.error('Erreur lors de la sauvegarde');
-      }
-    } catch (error) {
-      console.error('Erreur de connexion:', error);
-    } finally {
-      setIsSaving(false);
-    }
+    reorderImagesMutation.mutate({
+      publicationId: selectedPublication.id,
+      imageOrders,
+    });
   };
 
-  const handleCreatePublication = async () => {
-    try {
-      const response = await fetch('/api/publications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'Nouvelle publication',
-          description: 'Créée depuis la page de tri',
-        }),
-      });
-
-      if (response.ok) {
-        await fetchPublications(); // Recharger les publications
-      }
-    } catch (error) {
-      console.error('Erreur lors de la création de la publication:', error);
-    }
+  const handleCreatePublication = () => {
+    createPublicationMutation.mutate({
+      name: 'Nouvelle publication',
+      description: 'Créée depuis la page de tri',
+    });
   };
 
   if (!isAuthenticated) {
@@ -311,7 +298,7 @@ export default function SortPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {publications.map((publication) => (
+                    {publications.map((publication: Publication) => (
                       <div
                         key={publication.id}
                         className={`p-3 rounded-lg cursor-pointer transition-colors ${
