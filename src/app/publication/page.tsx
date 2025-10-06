@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
+import { notifications } from '@/lib/notifications';
 
 interface Publication {
   id: string;
@@ -82,17 +83,17 @@ export default function PublicationPage() {
         console.log('Export démarré:', data);
 
         // Afficher une notification de succès
-        alert('Export démarré avec succès ! Vous serez notifié quand il sera terminé.');
+        notifications.success('Export démarré avec succès ! Vous serez notifié quand il sera terminé.');
 
         // Recharger les publications pour mettre à jour les statuts
         await fetchPublications();
       } else {
         const error = await response.json();
-        alert(`Erreur lors de l'export: ${error.error}`);
+        notifications.error(`Erreur lors de l'export: ${error.error}`);
       }
     } catch (error) {
       console.error('Erreur de connexion:', error);
-      alert('Erreur de connexion lors de l\'export');
+      notifications.error('Erreur de connexion lors de l\'export');
     } finally {
       setIsExporting(false);
     }
@@ -116,15 +117,15 @@ export default function PublicationPage() {
       });
 
       if (response.ok) {
-        alert('Publication programmée avec succès !');
+        notifications.success('Publication programmée avec succès !');
         await fetchPublications();
       } else {
         const error = await response.json();
-        alert(`Erreur lors de la programmation: ${error.error}`);
+        notifications.error(`Erreur lors de la programmation: ${error.error}`);
       }
     } catch (error) {
       console.error('Erreur de connexion:', error);
-      alert('Erreur de connexion lors de la programmation');
+      notifications.error('Erreur de connexion lors de la programmation');
     }
   };
 

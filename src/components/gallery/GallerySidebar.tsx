@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 
 interface Gallery {
   id: string;
@@ -41,6 +42,7 @@ export function GallerySidebar({
   const [isCreating, setIsCreating] = useState(false);
   const [newGalleryName, setNewGalleryName] = useState('');
   const [newGalleryDescription, setNewGalleryDescription] = useState('');
+  // Suppression gérée par le composant parent
 
   const handleCreateGallery = () => {
     if (newGalleryName.trim()) {
@@ -126,9 +128,7 @@ export function GallerySidebar({
                     <Button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm('Êtes-vous sûr de vouloir supprimer cette galerie ?')) {
-                          onDeleteGallery(gallery.id);
-                        }
+                        onDeleteGallery(gallery.id);
                       }}
                       size="sm"
                       variant="ghost"
@@ -213,6 +213,8 @@ export function GallerySidebar({
           </div>
         </div>
       )}
+
+      {/* La modale de confirmation est gérée par le composant parent */}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { GalleryGrid } from '@/components/gallery/GalleryGrid';
 import { GallerySidebar } from '@/components/gallery/GallerySidebar';
 import { UploadDialog } from '@/components/gallery/UploadDialog';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { fetchGalleries, createGallery, deleteGallery } from '@/lib/api';
 import { notifications } from '@/lib/notifications';
 
@@ -33,6 +34,12 @@ export default function GalleryPage() {
   const { user, isAuthenticated } = useAuthStore();
   const [selectedGallery, setSelectedGallery] = useState<Gallery | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320); // Largeur par défaut de la sidebar (320px = w-80)
+  const [isResizing, setIsResizing] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; gallery: Gallery | null }>({
+    isOpen: false,
+    gallery: null,
+  });
   const queryClient = useQueryClient();
 
   // Utilisation de TanStack Query pour récupérer les galeries
@@ -50,6 +57,36 @@ export default function GalleryPage() {
       setSelectedGallery(galleries[0]);
     }
   }, [galleries, selectedGallery]);
+
+  // Gestionnaire de redimensionnement de la sidebar
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing) {
+        const newWidth = e.clientX;
+        if (newWidth >= 280 && newWidth <= 600) {
+          setSidebarWidth(newWidth);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   // Mutation pour créer une galerie
   const createGalleryMutation = useMutation({
@@ -69,7 +106,7 @@ export default function GalleryPage() {
     onSuccess: (_, deletedGalleryId) => {
       queryClient.invalidateQueries({ queryKey: ['galleries'] });
       if (selectedGallery?.id === deletedGalleryId) {
-        setSelectedGallery(galleries.find(g => g.id !== deletedGalleryId) || null);
+        setSelectedGallery(galleries.find((g: Gallery) => g.id !== deletedGalleryId) || null);
       }
       notifications.success('Galerie supprimée avec succès');
     },
@@ -83,7 +120,15 @@ export default function GalleryPage() {
   };
 
   const handleDeleteGallery = (galleryId: string) => {
-    deleteGalleryMutation.mutate(galleryId);
+    // Trouver la galerie à supprimer pour l'afficher dans la modale
+    const galleryToDelete = galleries.find((g: Gallery) => g.id === galleryId);
+    if (galleryToDelete) {
+      // Afficher la modale de confirmation au lieu de supprimer directement
+      setDeleteModal({
+        isOpen: true,
+        gallery: galleryToDelete,
+      });
+    }
   };
 
   if (!isAuthenticated) {
@@ -116,8 +161,15 @@ export default function GalleryPage() {
     <>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)]">
-          {/* Sidebar - Pleine largeur sur mobile, colonne fixe sur desktop */}
-          <div className="w-full lg:w-80 lg:flex-shrink-0 mb-6 lg:mb-0 lg:mr-8">
+          {/* Sidebar - Pleine largeur sur mobile, colonne redimensionnable sur desktop */}
+          <div
+            className="w-full lg:w-80 mb-6 lg:mb-0 lg:mr-8 relative group"
+            style={{
+              width: isResizing ? `${sidebarWidth}px` : undefined,
+              minWidth: '280px',
+              maxWidth: '600px'
+            }}
+          >
             <GallerySidebar
               galleries={galleries}
               selectedGallery={selectedGallery}
@@ -125,6 +177,17 @@ export default function GalleryPage() {
               onCreateGallery={handleCreateGallery}
               onDeleteGallery={handleDeleteGallery}
             />
+
+            {/* Resize handle - visible seulement sur desktop au hover */}
+            <div
+              className="hidden lg:block absolute -right-2 top-0 bottom-0 w-4 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity bg-gray-200 hover:bg-gray-300 rounded-full"
+              onMouseDown={(e) => {
+                setIsResizing(true);
+                e.preventDefault();
+              }}
+            >
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-8 bg-gray-400 rounded-full"></div>
+            </div>
           </div>
 
           {/* Main Grid - Pleine largeur sur mobile, flex sur desktop */}
@@ -145,6 +208,23 @@ export default function GalleryPage() {
           onUploadSuccess={fetchGalleries}
         />
       )}
+
+      {/* Confirmation Modal for Gallery Deletion */}
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, gallery: null })}
+        onConfirm={() => {
+          if (deleteModal.gallery) {
+            deleteGalleryMutation.mutate(deleteModal.gallery.id);
+            setDeleteModal({ isOpen: false, gallery: null });
+          }
+        }}
+        title="Supprimer la galerie"
+        message={`Êtes-vous sûr de vouloir supprimer la galerie "${deleteModal.gallery?.name}" ? Cette action est irréversible et supprimera toutes les images qu'elle contient.`}
+        confirmText="Supprimer définitivement"
+        cancelText="Annuler"
+        variant="danger"
+      />
     </>
   );
 }

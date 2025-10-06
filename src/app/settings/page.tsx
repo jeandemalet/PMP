@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
+import { notifications } from '@/lib/notifications';
 
 interface User {
   id: string;
@@ -53,16 +54,16 @@ export default function SettingsPage() {
       });
 
       if (response.ok) {
-        alert('Paramètres mis à jour avec succès !');
-        // Recharger la page pour mettre à jour les informations utilisateur
-        window.location.reload();
+        notifications.success('Paramètres mis à jour avec succès !');
+        // Mettre à jour les informations utilisateur dans le store
+        useAuthStore.getState().checkAuth();
       } else {
         const error = await response.json();
-        alert(`Erreur lors de la mise à jour: ${error.error}`);
+        notifications.error(`Erreur lors de la mise à jour: ${error.error}`);
       }
     } catch (error) {
       console.error('Erreur de connexion:', error);
-      alert('Erreur de connexion lors de la mise à jour');
+      notifications.error('Erreur de connexion lors de la mise à jour');
     } finally {
       setIsSaving(false);
     }

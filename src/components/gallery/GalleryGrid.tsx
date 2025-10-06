@@ -70,6 +70,13 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
     fetchImages();
   }, [gallery]);
 
+  // Re-déclencher fetchImages quand les paramètres de tri changent
+  useEffect(() => {
+    if (gallery) {
+      fetchImages();
+    }
+  }, [sortBy, sortOrder]);
+
   const handleImageSelect = (imageId: string) => {
     const newSelection = new Set(selectedImages);
     if (newSelection.has(imageId)) {
@@ -130,17 +137,16 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
 
   // Composant pour une ligne virtualisée
   const VirtualizedRow = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const startIndex = index * columnCount;
-    const endIndex = Math.min(startIndex + columnCount, images.length);
+    const startIndex = index * zoomLevel;
+    const endIndex = Math.min(startIndex + zoomLevel, images.length);
     const rowImages = images.slice(startIndex, endIndex);
 
     return (
       <div
-        style={style}
         className="grid gap-4"
         style={{
           ...style,
-          gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+          gridTemplateColumns: `repeat(${zoomLevel}, 1fr)`,
         }}
       >
         {rowImages.map((image) => (
