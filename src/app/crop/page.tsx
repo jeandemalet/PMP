@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { CropCanvas } from '@/components/crop/CropCanvas';
 import { CropFilmstrip } from '@/components/crop/CropFilmstrip';
 import { CropToolbar } from '@/components/crop/CropToolbar';
+import { notifications } from '@/lib/notifications';
 
 interface Image {
   id: string;
@@ -36,6 +37,13 @@ export default function CropPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [cropMode, setCropMode] = useState<'manual' | 'auto'>('manual');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<{
+    status: string;
+    progress: number;
+    result?: any;
+    error?: string;
+  } | null>(null);
 
   // Cache pour éviter les requêtes répétées
   const galleryCache = new Map();
@@ -97,7 +105,53 @@ export default function CropPage() {
 
   const currentImage = images[currentImageIndex];
 
-  // Gestionnaire pour le Smart Crop via API
+  // Polling pour suivre l'état du job Smart Crop
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
+    if (currentJobId && isProcessing) {
+      interval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/export?jobId=${currentJobId}`);
+          if (response.ok) {
+            const data = await response.json();
+            setJobStatus({
+              status: data.status,
+              progress: data.progress || 0,
+              result: data.result,
+              error: data.error,
+            });
+
+            // Si le job est terminé
+            if (data.status === 'COMPLETED') {
+              setIsProcessing(false);
+              setCurrentJobId(null);
+              notifications.success('Recadrage automatique terminé avec succès !');
+
+              // Recharger les images pour voir la nouvelle variante
+              if (currentImage) {
+                fetchImages();
+              }
+            } else if (data.status === 'FAILED') {
+              setIsProcessing(false);
+              setCurrentJobId(null);
+              notifications.error(`Échec du recadrage automatique: ${data.error || 'Erreur inconnue'}`);
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors du polling du job:', error);
+        }
+      }, 2000); // Polling toutes les 2 secondes
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [currentJobId, isProcessing, currentImage]);
+
+  // Gestionnaire pour le Smart Crop via API avec feedback utilisateur
   const handleSmartCrop = async () => {
     if (!currentImage) return;
 
@@ -118,13 +172,24 @@ export default function CropPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Smart crop démarré:', data);
-        // TODO: Afficher un message de succès et mettre à jour l'interface
+
+        // Afficher une notification de succès
+        notifications.success('Recadrage intelligent démarré ! Vous serez notifié quand il sera terminé.');
+
+        // TODO: Implémenter le polling pour suivre l'état du job
+        // Pour l'instant, afficher un message informatif
+        setTimeout(() => {
+          notifications.success('Le recadrage automatique peut prendre quelques minutes selon la taille de l\'image.');
+        }, 2000);
+
       } else {
         const error = await response.json();
         console.error('Erreur lors du smart crop:', error);
+        notifications.error(`Erreur lors du recadrage automatique: ${error.error || 'Erreur inconnue'}`);
       }
     } catch (error) {
       console.error('Erreur de connexion:', error);
+      notifications.error('Erreur de connexion lors du recadrage automatique');
     } finally {
       setIsProcessing(false);
     }

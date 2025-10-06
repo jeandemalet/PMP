@@ -10,6 +10,11 @@ interface User {
   email: string;
   name: string | null;
   role: 'USER' | 'ADMIN';
+  preferences?: {
+    theme?: 'light' | 'dark' | 'auto';
+    language?: 'fr' | 'en' | 'es';
+    notifications?: boolean;
+  };
   createdAt: string;
 }
 
@@ -21,12 +26,22 @@ export default function SettingsPage() {
     name: '',
     email: '',
   });
+  const [preferences, setPreferences] = useState({
+    theme: 'auto' as 'light' | 'dark' | 'auto',
+    language: 'fr' as 'fr' | 'en' | 'es',
+    notifications: true,
+  });
 
   useEffect(() => {
     if (isAuthenticated && user) {
       setFormData({
         name: user.name || '',
         email: user.email || '',
+      });
+      setPreferences({
+        theme: user.preferences?.theme || 'auto',
+        language: user.preferences?.language || 'fr',
+        notifications: user.preferences?.notifications ?? true,
       });
       setIsLoading(false);
     }
@@ -50,7 +65,10 @@ export default function SettingsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          preferences,
+        }),
       });
 
       if (response.ok) {
@@ -67,6 +85,13 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePreferenceChange = (key: string, value: string | boolean) => {
+    setPreferences(prev => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   if (!isAuthenticated) {
@@ -203,7 +228,11 @@ export default function SettingsPage() {
                     Choisissez l'apparence de l'application
                   </p>
                 </div>
-                <select className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <select
+                  value={preferences.theme}
+                  onChange={(e) => handlePreferenceChange('theme', e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
                   <option value="light">Clair</option>
                   <option value="dark">Sombre</option>
                   <option value="auto">Automatique</option>
@@ -218,7 +247,12 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" defaultChecked />
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={preferences.notifications}
+                    onChange={(e) => handlePreferenceChange('notifications', e.target.checked)}
+                  />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                 </label>
               </div>
@@ -230,7 +264,11 @@ export default function SettingsPage() {
                     Langue d'affichage de l'interface
                   </p>
                 </div>
-                <select className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <select
+                  value={preferences.language}
+                  onChange={(e) => handlePreferenceChange('language', e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
                   <option value="fr">Français</option>
                   <option value="en">English</option>
                   <option value="es">Español</option>

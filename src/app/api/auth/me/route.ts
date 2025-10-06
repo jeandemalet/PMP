@@ -7,6 +7,11 @@ import { z } from 'zod';
 const updateProfileSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').optional(),
   email: z.string().email('Email invalide').optional(),
+  preferences: z.object({
+    theme: z.enum(['light', 'dark', 'auto']).optional(),
+    language: z.enum(['fr', 'en', 'es']).optional(),
+    notifications: z.boolean().optional(),
+  }).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -36,6 +41,7 @@ export async function GET(request: NextRequest) {
         email: true,
         name: true,
         role: true,
+        preferences: true,
         createdAt: true,
         _count: {
           select: {
@@ -85,7 +91,7 @@ export async function PUT(request: NextRequest) {
 
     // Récupérer les données de la requête
     const body = await request.json();
-    const { name, email } = updateProfileSchema.parse(body);
+    const { name, email, preferences } = updateProfileSchema.parse(body);
 
     // Vérifier que l'utilisateur existe
     const existingUser = await prisma.user.findUnique({
@@ -113,18 +119,29 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Fusionner les préférences existantes avec les nouvelles
+    let updatedPreferences = existingUser.preferences as any;
+    if (preferences) {
+      updatedPreferences = {
+        ...(updatedPreferences || {}),
+        ...preferences,
+      };
+    }
+
     // Mettre à jour l'utilisateur
     const updatedUser = await prisma.user.update({
       where: { id: decoded.userId },
       data: {
         ...(name !== undefined && { name }),
         ...(email !== undefined && { email }),
+        ...(preferences !== undefined && { preferences: updatedPreferences }),
       },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        preferences: true,
         createdAt: true,
       },
     });
