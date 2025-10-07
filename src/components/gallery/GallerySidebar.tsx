@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import { Icon } from '@/components/ui/Icon';
 
 interface Gallery {
   id: string;
@@ -17,6 +18,7 @@ interface Gallery {
     id: string;
     filename: string;
     originalName: string;
+    path: string;
     size: number;
     mimeType: string;
     uploadedAt: string;
@@ -134,7 +136,7 @@ export function GallerySidebar({
                       variant="ghost"
                       className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
-                      ×
+                      <Icon name="delete" size={14} />
                     </Button>
                   )}
                 </div>
@@ -147,7 +149,7 @@ export function GallerySidebar({
                         key={image.id}
                         className="w-8 h-8 rounded border-2 border-white bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600"
                         style={{
-                          backgroundImage: `url(/uploads/${image.filename})`,
+                          backgroundImage: `url(/${image.path})`,
                           backgroundSize: 'cover',
                           backgroundPosition: 'center',
                           zIndex: 4 - index,

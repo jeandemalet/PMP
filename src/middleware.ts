@@ -1,4 +1,5 @@
 // src/middleware.ts
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -30,9 +31,11 @@ export async function middleware(request: NextRequest) {
   }
 
   const protectedPaths = ['/gallery', '/admin', '/sort', '/crop', '/description', '/calendar', '/publication', '/settings'];
+  const protectedApiPaths = ['/api/galleries', '/api/images', '/api/publications', '/api/upload'];
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
+  const isProtectedApiPath = protectedApiPaths.some(path => pathname.startsWith(path));
 
-  if (!isProtectedPath) {
+  if (!isProtectedPath && !isProtectedApiPath) {
     console.log('-> Path is not protected. Allowing access.');
     console.log(`--- [Middleware End] ---`);
     return NextResponse.next();
@@ -105,6 +108,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.).*)',
   ],
 };

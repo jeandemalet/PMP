@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/auth';
 import { useOnClickOutside } from '@/lib/hooks/useOnClickOutside';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/Icon';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -50,12 +51,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Navigation principale selon le cahier des charges
   const navigationItems = [
-    { name: 'Galerie', href: '/gallery', icon: '🖼️' },
-    { name: 'Tri', href: '/sort', icon: '🔄' },
-    { name: 'Recadrage', href: '/crop', icon: '✂️' },
-    { name: 'Description', href: '/description', icon: '📝' },
-    { name: 'Calendrier', href: '/calendar', icon: '📅' },
-    { name: 'Publication', href: '/publication', icon: '🚀' },
+    { name: 'Galerie', href: '/gallery', iconName: 'gallery' as const },
+    { name: 'Tri', href: '/sort', iconName: 'sort' as const },
+    { name: 'Recadrage', href: '/crop', iconName: 'crop' as const },
+    { name: 'Description', href: '/description', iconName: 'description' as const },
+    { name: 'Calendrier', href: '/calendar', iconName: 'calendar' as const },
+    { name: 'Publication', href: '/publication', iconName: 'publish' as const },
   ];
 
   // Si pas authentifié et pas en cours de chargement, rediriger vers la page de connexion
@@ -108,7 +109,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    <span>{item.icon}</span>
+                    <Icon name={item.iconName} size={16} />
                     <span>{item.name}</span>
                   </Link>
                 );
@@ -151,7 +152,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         className="w-full justify-start text-gray-700"
                         onClick={handleSettings}
                       >
-                        ⚙️ Paramètres
+                        <Icon name="settings" size={16} className="mr-2" />
+                        Paramètres
                       </Button>
                       {user?.role === 'ADMIN' && (
                         <Button
@@ -160,7 +162,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                           className="w-full justify-start text-gray-700"
                           onClick={handleAdmin}
                         >
-                          👑 Admin
+                          <Icon name="admin" size={16} className="mr-2" />
+                          Admin
                         </Button>
                       )}
                     </div>
@@ -200,7 +203,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    <span>{item.icon}</span>
+                    <Icon name={item.iconName} size={14} />
                     <span>{item.name}</span>
                   </Link>
                 );

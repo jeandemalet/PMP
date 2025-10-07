@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface Gallery {
@@ -26,15 +26,24 @@ interface UploadDialogProps {
   galleries: Gallery[];
   onClose: () => void;
   onUploadSuccess: () => void;
+  selectedGallery: Gallery | null;
 }
 
-export function UploadDialog({ galleries, onClose, onUploadSuccess }: UploadDialogProps) {
+export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGallery }: UploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedGalleryId, setSelectedGalleryId] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [uploadResults, setUploadResults] = useState<{ [key: string]: { success: boolean; error?: string } }>({});
+  const [failedFiles, setFailedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pré-remplir automatiquement avec la galerie sélectionnée
+  useEffect(() => {
+    if (selectedGallery) {
+      setSelectedGalleryId(selectedGallery.id);
+    }
+  }, [selectedGallery]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -108,6 +117,14 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess }: UploadDial
     }
 
     setIsUploading(false);
+
+    // Identifier les fichiers qui ont échoué pour permettre un retry
+    const newFailedFiles = selectedFiles.filter(file => {
+      const result = uploadResults[file.name];
+      return result && !result.success;
+    });
+    setFailedFiles(newFailedFiles);
+
     onUploadSuccess();
   };
 
@@ -125,46 +142,86 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess }: UploadDial
 
   const hasErrors = Object.values(uploadResults).some(result => !result.success);
 
+  const retryFailedFiles = async () => {
+    if (failedFiles.length === 0 || !selectedGalleryId) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress({});
+    setUploadResults(prev => {
+      // Garder seulement les résultats des fichiers qui ne sont pas en cours de retry
+      const newResults = { ...prev };
+      failedFiles.forEach(file => {
+        delete newResults[file.name];
+      });
+      return newResults;
+    });
+
+    // Nombre maximum d'uploads simultanés
+    const MAX_CONCURRENT_UPLOADS = 3;
+
+    // Diviser les fichiers échoués en groupes pour l'upload parallélisé
+    const fileGroups = [];
+    for (let i = 0; i < failedFiles.length; i += MAX_CONCURRENT_UPLOADS) {
+      fileGroups.push(failedFiles.slice(i, i + MAX_CONCURRENT_UPLOADS));
+    }
+
+    // Traiter chaque groupe en parallèle
+    for (const group of fileGroups) {
+      const uploadPromises = group.map(async (file) => {
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('galleryId', selectedGalleryId);
+
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+            setUploadResults(prev => ({ ...prev, [file.name]: { success: true } }));
+          } else {
+            const error = await response.json();
+            setUploadResults(prev => ({ ...prev, [file.name]: { success: false, error: error.error } }));
+          }
+        } catch (error) {
+          setUploadResults(prev => ({
+            ...prev,
+            [file.name]: { success: false, error: 'Erreur de connexion' }
+          }));
+        }
+      });
+
+      // Attendre que tous les uploads du groupe soient terminés avant de passer au suivant
+      await Promise.allSettled(uploadPromises);
+    }
+
+    setIsUploading(false);
+
+    // Mettre à jour la liste des fichiers échoués après le retry
+    const stillFailedFiles = failedFiles.filter(file => {
+      const result = uploadResults[file.name];
+      return result && !result.success;
+    });
+    setFailedFiles(stillFailedFiles);
+
+    onUploadSuccess();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Ajouter des images</h2>
-            <Button
-              onClick={onClose}
-              size="sm"
-              variant="ghost"
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ×
-            </Button>
-          </div>
         </div>
 
         {/* Content */}
         <div className="p-6">
-          {/* Gallery Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Sélectionner une galerie
-            </label>
-            <select
-              value={selectedGalleryId}
-              onChange={(e) => setSelectedGalleryId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              disabled={isUploading}
-            >
-              <option value="">Choisir une galerie...</option>
-              {galleries.map((gallery) => (
-                <option key={gallery.id} value={gallery.id}>
-                  {gallery.name} ({gallery._count.images} images)
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* File Upload Area */}
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -196,7 +253,7 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess }: UploadDial
                   Glissez vos images ici
                 </p>
                 <p className="text-sm text-gray-600 mb-4">
-                  ou cliquez pour sélectionner des fichiers
+                  ou
                 </p>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
@@ -302,22 +359,37 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess }: UploadDial
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-between">
-          <Button
-            onClick={onClose}
-            variant="outline"
-            disabled={isUploading}
-          >
-            Annuler
-          </Button>
+        <div className="px-6 py-4 border-t bg-gray-50">
+          <div className="flex justify-between items-center">
+            <Button
+              onClick={onClose}
+              variant="outline"
+              disabled={isUploading}
+            >
+              Annuler
+            </Button>
 
-          <Button
-            onClick={uploadFiles}
-            disabled={selectedFiles.length === 0 || !selectedGalleryId || isUploading}
-            className="bg-indigo-600 hover:bg-indigo-700"
-          >
-            {isUploading ? 'Upload en cours...' : `Uploader ${selectedFiles.length} fichier${selectedFiles.length > 1 ? 's' : ''}`}
-          </Button>
+            <div className="flex items-center space-x-2">
+              {/* Bouton de retry - n'apparaît que s'il y a des fichiers échoués */}
+              {failedFiles.length > 0 && !isUploading && (
+                <Button
+                  onClick={retryFailedFiles}
+                  variant="outline"
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                >
+                  Réessayer {failedFiles.length} échec{failedFiles.length > 1 ? 's' : ''}
+                </Button>
+              )}
+
+              <Button
+                onClick={uploadFiles}
+                disabled={selectedFiles.length === 0 || !selectedGalleryId || isUploading}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                {isUploading ? 'Upload en cours...' : `Uploader ${selectedFiles.length} fichier${selectedFiles.length > 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -15,12 +15,22 @@ export async function GET(request: NextRequest) {
     // Récupérer l'ID utilisateur depuis les headers (ajouté par le middleware)
     const userId = request.headers.get('x-user-id');
 
+    console.log('🔍 API /api/galleries - Headers received:', {
+      'x-user-id': request.headers.get('x-user-id'),
+      'x-user-email': request.headers.get('x-user-email'),
+      'x-user-role': request.headers.get('x-user-role'),
+      'all-headers': Object.fromEntries(request.headers.entries())
+    });
+
     if (!userId) {
+      console.log('❌ API /api/galleries - No user ID found in headers');
       return NextResponse.json(
         { error: 'Non authentifié' },
         { status: 401 }
       );
     }
+
+    console.log('✅ API /api/galleries - User ID found:', userId);
 
     const galleries = await prisma.gallery.findMany({
       where: { userId },

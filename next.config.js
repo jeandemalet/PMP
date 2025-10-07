@@ -10,6 +10,12 @@ const nextConfig = {
         source: '/api/:path*',
         destination: '/api/:path*',
       },
+      // Cette règle intercepte les requêtes vers /uploads/...
+      // et les redirige en interne vers notre API de service de fichiers.
+      {
+        source: '/uploads/:path*',
+        destination: '/api/files/:path*',
+      },
     ]
   },
   // Forcer le runtime Node.js pour les middlewares

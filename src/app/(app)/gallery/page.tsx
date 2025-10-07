@@ -24,6 +24,7 @@ interface Gallery {
     id: string;
     filename: string;
     originalName: string;
+    path: string;
     size: number;
     mimeType: string;
     uploadedAt: string;
@@ -160,6 +161,7 @@ export default function GalleryPage() {
   return (
     <>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)]">
           {/* Sidebar - Pleine largeur sur mobile, colonne redimensionnable sur desktop */}
           <div
@@ -195,6 +197,7 @@ export default function GalleryPage() {
             <GalleryGrid
               gallery={selectedGallery}
               onRefresh={fetchGalleries}
+              onAddPhotos={() => setIsUploadOpen(true)}
             />
           </div>
         </div>
@@ -206,6 +209,7 @@ export default function GalleryPage() {
           galleries={galleries}
           onClose={() => setIsUploadOpen(false)}
           onUploadSuccess={fetchGalleries}
+          selectedGallery={selectedGallery}
         />
       )}
 

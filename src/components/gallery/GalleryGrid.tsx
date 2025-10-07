@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/Icon';
 
 interface Gallery {
   id: string;
@@ -17,6 +18,7 @@ interface Gallery {
     id: string;
     filename: string;
     originalName: string;
+    path: string;
     size: number;
     mimeType: string;
     uploadedAt: string;
@@ -26,18 +28,20 @@ interface Gallery {
 interface GalleryGridProps {
   gallery: Gallery | null;
   onRefresh: () => void;
+  onAddPhotos: () => void;
 }
 
 interface Image {
   id: string;
   filename: string;
   originalName: string;
+  path: string;
   size: number;
   mimeType: string;
   uploadedAt: string;
 }
 
-export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
+export function GalleryGrid({ gallery, onRefresh, onAddPhotos }: GalleryGridProps) {
   const [images, setImages] = useState<Image[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
@@ -145,9 +149,9 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
           >
             {/* Image */}
             <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-              {image.filename ? (
+              {image.path ? (
                 <img
-                  src={`/uploads/${image.filename}`}
+                  src={`/${image.path}`}
                   alt={image.originalName}
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -210,14 +214,22 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
       {/* Header avec contrôles de zoom et tri */}
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-4">
-          <div>
+          <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900">{gallery.name}</h2>
             {gallery.description && (
               <p className="text-sm text-gray-600 mt-1">{gallery.description}</p>
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <Button
+              onClick={onAddPhotos}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all duration-200 flex items-center space-x-2"
+            >
+              <Icon name="add" size={20} />
+              <span>Ajouter des photos</span>
+            </Button>
+
             {images.length > 0 && (
               <>
                 <Button
@@ -270,12 +282,12 @@ export function GalleryGrid({ gallery, onRefresh }: GalleryGridProps) {
                 }}
                 className="text-sm border border-gray-300 rounded px-2 py-1"
               >
-                <option value="date-desc">📅 Plus récent</option>
-                <option value="date-asc">📅 Plus ancien</option>
-                <option value="name-asc">🔤 Nom A-Z</option>
-                <option value="name-desc">🔤 Nom Z-A</option>
-                <option value="size-desc">📏 Plus lourd</option>
-                <option value="size-asc">📏 Plus léger</option>
+                <option value="date-desc">Plus récent</option>
+                <option value="date-asc">Plus ancien</option>
+                <option value="name-asc">Nom A-Z</option>
+                <option value="name-desc">Nom Z-A</option>
+                <option value="size-desc">Plus lourd</option>
+                <option value="size-asc">Plus léger</option>
               </select>
             </div>
           </div>

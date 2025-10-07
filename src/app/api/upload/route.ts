@@ -59,11 +59,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier la taille du fichier (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Vérifier la taille du fichier (max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'Fichier trop volumineux. Taille maximale: 10MB.' },
+        { error: 'Fichier trop volumineux. Taille maximale: 50MB.' },
         { status: 400 }
       );
     }
@@ -113,11 +113,12 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(bytes);
       await fs.writeFile(filePath, buffer);
 
-      // Mettre à jour le chemin dans la base de données maintenant que le fichier est sauvegardé
+      // Mettre à jour le chemin dans la base de données avec le CHEMIN RELATIF
       await prisma.image.update({
         where: { id: image.id },
         data: {
-          path: filePath,
+          // MODIFICATION CRITIQUE : Utiliser relativePath au lieu de filePath
+          path: relativePath.replace(/\\/g, '/'), // Remplace les backslashes par des slashes pour la compatibilité URL
         },
       });
 
