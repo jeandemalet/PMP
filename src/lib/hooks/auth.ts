@@ -68,7 +68,12 @@ export function useLogin() {
     onSuccess: (user) => {
       queryClient.setQueryData(['user'], user);
       queryClient.invalidateQueries({ queryKey: ['user'] });
-      router.push('/gallery');
+
+      // Rediriger vers la page demandée ou vers /gallery par défaut
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/gallery';
+
+      // Utiliser le routeur Next.js pour une navigation propre
+      router.push(redirectUrl);
     },
   });
 }

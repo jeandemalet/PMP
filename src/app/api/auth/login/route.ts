@@ -72,10 +72,23 @@ export async function POST(request: NextRequest) {
     // Définir le cookie avec le token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: false, // false en développement (localhost)
+      sameSite: 'lax', // Plus permissif pour le développement
       maxAge: 60 * 60 * 24 * 7, // 7 jours
       path: '/',
+    });
+
+    console.log('🔐 Login successful - Cookie set:', {
+      tokenLength: token.length,
+      userId: user.id,
+      cookieName: 'auth-token',
+      cookieOptions: {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      }
     });
 
     return response;

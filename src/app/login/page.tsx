@@ -138,6 +138,14 @@ export default function LoginPage() {
             </div>
           )}
 
+          <div className="flex items-center justify-end">
+            <div className="text-sm">
+              <a href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Mot de passe oublié ?
+              </a>
+            </div>
+          </div>
+
           <div>
             <Button
               type="submit"
