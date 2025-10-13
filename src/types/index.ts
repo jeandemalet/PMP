@@ -5,6 +5,18 @@
  * import { User, Image, Job, Publication, Gallery, Role, JobType, JobStatus } from '@prisma/client'
  */
 
+// Interface pour les préférences utilisateur avec validation
+export interface UserPreferences {
+  theme?: 'light' | 'dark' | 'auto';
+  language?: 'fr' | 'en' | 'es' | 'de';
+  notifications?: boolean;
+  autoSave?: boolean;
+  itemsPerPage?: number;
+  timezone?: string;
+  dateFormat?: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  timeFormat?: '12h' | '24h';
+}
+
 // Types utilitaires pour les réponses API
 export interface ApiResponse<T> {
   success: boolean

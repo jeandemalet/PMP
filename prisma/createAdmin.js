@@ -1,10 +1,15 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
 async function main() {
   const email = 'admin@pmp.local';
+
+  // Récupérer le mot de passe depuis les variables d'environnement ou générer un mot de passe sécurisé
+  const adminPassword = process.env.ADMIN_PASSWORD || 'PMP_' + crypto.randomBytes(16).toString('hex') + '_Secure!';
+
   const userExists = await prisma.user.findUnique({ where: { email } });
 
   if (userExists) {
@@ -12,7 +17,7 @@ async function main() {
     return;
   }
 
-  const hashedPassword = await bcrypt.hash('admin123', 12);
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
   await prisma.user.create({
     data: {
       email: email,
@@ -22,7 +27,10 @@ async function main() {
     }
   });
 
-  console.log('Utilisateur admin créé avec succès ! (email: admin@pmp.local, mdp: admin123)');
+  console.log('Utilisateur admin créé avec succès !');
+  console.log(`Email: ${email}`);
+  console.log(`Mot de passe: ${adminPassword}`);
+  console.log('⚠️  Assurez-vous de noter ce mot de passe et de le changer après la première connexion !');
 }
 
 main()

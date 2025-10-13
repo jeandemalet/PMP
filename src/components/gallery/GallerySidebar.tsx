@@ -75,6 +75,7 @@ export function GallerySidebar({
             onClick={() => setIsCreating(true)}
             size="sm"
             className="bg-indigo-600 hover:bg-indigo-700"
+            data-testid="create-gallery-button"
           >
             + Nouvelle
           </Button>
@@ -99,6 +100,8 @@ export function GallerySidebar({
                     : 'hover:bg-gray-50 border-2 border-transparent'
                 } ${gallery.isPending ? 'opacity-60' : ''}`}
                 onClick={() => onSelectGallery(gallery)}
+                data-testid={`gallery-item-${gallery.id}`}
+                data-selected={selectedGallery?.id === gallery.id}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -183,6 +186,7 @@ export function GallerySidebar({
               onKeyDown={handleKeyPress}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               autoFocus
+              data-testid="gallery-name-input"
             />
             <textarea
               placeholder="Description (optionnelle)"
@@ -191,12 +195,14 @@ export function GallerySidebar({
               onKeyDown={handleKeyPress}
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              data-testid="gallery-description-input"
             />
             <div className="flex space-x-2">
               <Button
                 onClick={handleCreateGallery}
                 size="sm"
                 className="bg-indigo-600 hover:bg-indigo-700"
+                data-testid="confirm-create-gallery-button"
               >
                 Créer
               </Button>
@@ -208,6 +214,7 @@ export function GallerySidebar({
                 }}
                 size="sm"
                 variant="outline"
+                data-testid="cancel-create-gallery-button"
               >
                 Annuler
               </Button>

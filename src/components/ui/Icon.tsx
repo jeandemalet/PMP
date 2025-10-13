@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icons, IconName, getIconPath } from '@/lib/icons';
 
 interface IconProps {
@@ -14,34 +14,24 @@ interface IconProps {
  * Respecte les spécifications du cahier des charges pour une gestion cohérente des assets
  */
 export function Icon({ name, size = 16, className = '', alt, fallback }: IconProps) {
+  const [hasError, setHasError] = useState(false);
   const iconPath = getIconPath(name);
   const altText = alt || `${name} icon`;
 
-  // Gestion du fallback en cas d'erreur de chargement
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    if (fallback) {
-      // Remplacer par le fallback fourni
-      const target = e.target as HTMLElement;
-      target.style.display = 'none';
-      const parent = target.parentElement;
-      if (parent && !parent.querySelector('.icon-fallback')) {
-        const fallbackElement = document.createElement('span');
-        fallbackElement.className = 'icon-fallback inline-flex items-center justify-center';
-        fallbackElement.style.width = typeof size === 'number' ? `${size}px` : size;
-        fallbackElement.style.height = typeof size === 'number' ? `${size}px` : size;
-
-        // Gérer différents types de fallback
-        if (typeof fallback === 'string') {
-          fallbackElement.textContent = fallback;
-        } else if (React.isValidElement(fallback)) {
-          // Pour les éléments React, utiliser une approche différente
-          fallbackElement.innerHTML = `<span>${fallback}</span>`;
-        }
-
-        parent.appendChild(fallbackElement);
-      }
-    }
-  };
+  // Si erreur de chargement et fallback fourni, afficher le fallback
+  if (hasError && fallback) {
+    return (
+      <span
+        className={`icon-fallback inline-flex items-center justify-center ${className}`}
+        style={{
+          width: typeof size === 'number' ? `${size}px` : size,
+          height: typeof size === 'number' ? `${size}px` : size,
+        }}
+      >
+        {fallback}
+      </span>
+    );
+  }
 
   return (
     <img
@@ -53,9 +43,8 @@ export function Icon({ name, size = 16, className = '', alt, fallback }: IconPro
       style={{
         width: typeof size === 'number' ? `${size}px` : size,
         height: typeof size === 'number' ? `${size}px` : size,
-        ...fallback ? { display: 'block' } : {}
       }}
-      onError={handleError}
+      onError={() => setHasError(true)}
     />
   );
 }

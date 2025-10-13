@@ -40,20 +40,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Créer un job smart-crop dans la file d'attente
-    const job = await imageQueue.add('smart-crop', {
+    // CRITIQUE: Créer d'abord une entrée dans la table Job de Prisma (comme dans export)
+    const dbJob = await prisma.job.create({
+      data: {
+        type: 'IMAGE_CROP',
+        status: 'PENDING',
+        data: {
+          imageId,
+          targetWidth,
+          targetHeight,
+          imagePath: image.path,
+          imageName: image.filename,
+          cropType: 'smart', // Indiquer que c'est un smart crop
+        },
+        userId,
+      },
+    });
+
+    // Ajouter le job à la queue avec l'ID du job Prisma
+    const queueJob = await imageQueue.add('smart-crop', {
+      jobId: dbJob.id, // Référence vers le job Prisma
       imageId,
       targetWidth,
       targetHeight,
       userId,
     });
 
+    // Mettre à jour le job avec l'ID BullMQ pour suivi
+    await prisma.job.update({
+      where: { id: dbJob.id },
+      data: {
+        data: {
+          ...dbJob.data as any,
+          queueJobId: queueJob.id,
+        },
+      },
+    });
+
     return NextResponse.json(
       {
         message: 'Smart crop démarré',
-        jobId: job.id,
+        jobId: dbJob.id, // Retourner l'ID Prisma plutôt que BullMQ
+        queueJobId: queueJob.id, // Garder aussi l'ID BullMQ pour compatibilité
+        targetWidth,
+        targetHeight,
       },
-      { status: 200 }
+      { status: 202 }
     );
   } catch (error) {
     if (error instanceof z.ZodError) {

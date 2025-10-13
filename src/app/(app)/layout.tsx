@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/auth';
 import { useOnClickOutside } from '@/lib/hooks/useOnClickOutside';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/Icon';
+import { authLogger } from '@/lib/logger';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -49,6 +50,32 @@ export default function AppLayout({ children }: AppLayoutProps) {
     router.push('/admin');
   };
 
+  // Gestionnaire pour revenir de l'impersonation
+  const handleRevertImpersonation = async () => {
+    try {
+      const response = await fetch('/api/admin/impersonate/revert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        authLogger.info({
+          userId: user?.id,
+          email: user?.email,
+        }, 'User reverted impersonation session');
+
+        // Recharger la page pour que le nouveau cookie soit pris en compte
+        window.location.href = '/admin';
+      } else {
+        console.error('Erreur lors du retour d\'impersonation');
+      }
+    } catch (error) {
+      console.error('Erreur réseau lors du retour d\'impersonation:', error);
+    }
+  };
+
   // Navigation principale selon le cahier des charges
   const navigationItems = [
     { name: 'Galerie', href: '/gallery', iconName: 'gallery' as const },
@@ -61,7 +88,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Si pas authentifié et pas en cours de chargement, rediriger vers la page de connexion
   if (!isAuthenticated && !isLoading) {
-    router.push('/login');
+    // Utiliser useEffect pour éviter les appels à router.push dans le corps du composant
+    React.useEffect(() => {
+      router.push('/login');
+    }, [router]);
     return null;
   }
 
@@ -77,19 +107,36 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
+  // Détecter si la session est une impersonation
+  const isImpersonating = user && (user as any).impersonated;
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Bandeau d'avertissement pour l'impersonation */}
+      {isImpersonating && (
+        <div className="bg-yellow-400 text-black text-center p-2 font-bold sticky top-0 z-50">
+          ⚠️ Vous naviguez en tant que {user.email}.{' '}
+          <button
+            onClick={handleRevertImpersonation}
+            className="underline font-bold hover:text-blue-700 transition-colors"
+          >
+            Retourner à mon compte administrateur
+          </button>
+        </div>
+      )}
+
       {/* Header principal selon le cahier des charges */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className={`bg-white shadow-sm border-b ${isImpersonating ? 'sticky top-12' : 'sticky top-0'} z-40`}>
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo - Gauche */}
             <div className="flex items-center">
-              <Link href="/gallery" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">PMP</span>
-                </div>
-                <span className="font-semibold text-gray-900">Photo Management</span>
+              <Link href="/gallery">
+                <img
+                  src="/Assets/logo.png"
+                  alt="PMP Logo"
+                  className="w-12 h-12"
+                />
               </Link>
             </div>
 

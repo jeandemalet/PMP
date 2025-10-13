@@ -7,6 +7,7 @@ export interface AuthenticatedRequest extends NextRequest {
     email: string;
     name: string | null;
     role: string;
+    createdAt: string;
   };
 }
 
@@ -19,6 +20,7 @@ export type Role = 'USER' | 'ADMIN';
 
 /**
  * Higher-Order Function pour sécuriser les routes API avec authentification
+ * Utilise les informations utilisateur depuis les headers (middleware) pour éviter une double requête DB
  * @param handler - La fonction handler originale
  * @param requiredRole - Le rôle minimum requis (par défaut 'USER')
  * @returns Une fonction handler sécurisée
@@ -29,33 +31,28 @@ export function withAuth<T = any>(
 ) {
   return async function(request: NextRequest, context?: T) {
     try {
-      // 1. Récupérer l'ID utilisateur depuis les headers (ajouté par le middleware)
+      // 1. Récupérer les informations utilisateur depuis les headers (ajoutées par le middleware)
       const userId = request.headers.get('x-user-id');
+      const userEmail = request.headers.get('x-user-email');
+      const userRole = request.headers.get('x-user-role');
+      const userName = request.headers.get('x-user-name');
+      const userCreatedAt = request.headers.get('x-user-created-at');
 
-      if (!userId) {
+      if (!userId || !userEmail || !userRole) {
         return NextResponse.json(
           { error: 'Non authentifié' },
           { status: 401 }
         );
       }
 
-      // 2. Vérifier que l'utilisateur existe et récupérer ses informations
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true
-        },
-      });
-
-      if (!user) {
-        return NextResponse.json(
-          { error: 'Utilisateur non trouvé' },
-          { status: 401 }
-        );
-      }
+      // 2. Construire l'objet utilisateur à partir des headers
+      const user = {
+        id: userId,
+        email: userEmail,
+        name: userName || null,
+        role: userRole,
+        createdAt: userCreatedAt || new Date().toISOString(),
+      };
 
       // 3. Vérifier les permissions si un rôle spécifique est requis
       if (requiredRole === 'ADMIN' && user.role !== 'ADMIN') {

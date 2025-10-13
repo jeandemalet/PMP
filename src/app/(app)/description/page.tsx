@@ -197,7 +197,7 @@ export default function DescriptionPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
@@ -242,7 +242,7 @@ export default function DescriptionPage() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-12 gap-8 h-[calc(100vh-12rem)]">
           {/* Image Preview */}
           <div className="col-span-4">
@@ -387,6 +387,18 @@ export default function DescriptionPage() {
                     <Button
                       variant="outline"
                       disabled={isSaving}
+                      onClick={() => {
+                        // Restaurer les valeurs originales depuis metadata
+                        if (metadata?.metadata) {
+                          setFormData({
+                            title: metadata.metadata.title || '',
+                            description: metadata.metadata.description || '',
+                            tags: metadata.metadata.tags || '',
+                            alt: metadata.metadata.alt || '',
+                            caption: metadata.metadata.caption || '',
+                          });
+                        }
+                      }}
                     >
                       Annuler
                     </Button>

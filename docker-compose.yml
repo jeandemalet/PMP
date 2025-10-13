@@ -18,6 +18,7 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
+      - ./uploads:/app/uploads
     command: sh -c "npx prisma generate && npm run dev"
 
   db:
@@ -49,6 +50,7 @@ services:
     volumes:
       - ./worker:/app
       - /app/node_modules
+      - ./uploads:/app/uploads
     command: sh -c "npm install && npm run dev"
 
 volumes:

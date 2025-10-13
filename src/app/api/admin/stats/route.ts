@@ -23,23 +23,25 @@ async function getRealSystemMetrics() {
 
   try {
     // Récupérer les informations de stockage avec df
-    let storageInfo = { total: 50, used: 10 }; // valeurs par défaut en GB
+    let storageInfo: { total: number; used: number; unit: string } | null = null;
 
     try {
       if (process.platform === 'linux' || process.platform === 'darwin') {
         const { stdout } = await execAsync('df / | tail -1 | awk \'{print $2, $3}\'');
         const [totalBlocks, usedBlocks] = stdout.trim().split(/\s+/).map(Number);
 
-        if (totalBlocks && usedBlocks) {
+        if (totalBlocks && usedBlocks && totalBlocks > 0) {
           // Convertir de blocs 1K en GB
           storageInfo = {
             total: Math.round(totalBlocks / 1024 / 1024),
-            used: Math.round(usedBlocks / 1024 / 1024)
+            used: Math.round(usedBlocks / 1024 / 1024),
+            unit: 'GB'
           };
         }
       }
     } catch (error) {
       console.warn('Impossible de récupérer les informations de stockage via df:', error);
+      // Ne pas définir de valeur par défaut trompeuse
     }
 
     // Récupérer l'utilisation mémoire détaillée
@@ -68,17 +70,13 @@ async function getRealSystemMetrics() {
       cpuUsagePercent = Math.round(Math.min(loadAverage[0] * 100 / os.cpus().length, 100));
     }
 
-    const storageUsagePercent = Math.round((storageInfo.used / storageInfo.total) * 100);
+    const storageUsagePercent = storageInfo ? Math.round((storageInfo.used / storageInfo.total) * 100) : 0;
 
     const metrics = {
       cpu: Math.max(0, Math.min(100, cpuUsagePercent)),
       memory: Math.max(0, Math.min(100, memoryUsagePercent)),
-      storage: Math.max(0, Math.min(100, storageUsagePercent)),
-      storageDetails: {
-        used: storageInfo.used,
-        total: storageInfo.total,
-        unit: 'GB'
-      },
+      storage: storageInfo ? Math.max(0, Math.min(100, storageUsagePercent)) : null,
+      storageDetails: storageInfo,
       nodeVersion: process.version,
       uptime: Math.floor(process.uptime()),
       platform: process.platform,

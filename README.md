@@ -2,22 +2,34 @@
 
 Une plateforme complète de gestion de publications avec traitement d'images, organisation et planification.
 
+## 🎯 Statut du Projet
+
+**✅ MVP 100% FONCTIONNEL** - Toutes les fonctionnalités principales sont opérationnelles avec une architecture robuste et une excellente expérience utilisateur.
+
 ## 🚀 Fonctionnalités
 
-### ✅ Workflow Complet
-- **📸 Galerie** : Upload et gestion des images
-- **✂️ Recadrage** : Outils manuels et automatiques avancés
+### ✅ Workflow Complet Utilisateur
+- **📸 Galerie** : Upload et gestion des images avec traitement automatique
+- **✂️ Recadrage** : Outils manuels et automatiques avancés avec feedback temps réel
 - **📝 Description** : Métadonnées complètes (titre, description, tags, alt, caption)
 - **🔄 Tri** : Organisation par drag & drop avec publications
 - **📅 Calendrier** : Planification temporelle avec interface interactive
-- **📦 Export** : Génération automatique de ZIP avec métadonnées
+- **📦 Export** : Génération automatique de ZIP avec métadonnées et suivi des jobs
 
-### ✅ Architecture Technique
-- **🔐 Authentification** : NextAuth.js avec rôles utilisateurs
-- **🗄️ Base de données** : Prisma ORM avec PostgreSQL/SQLite
-- **⚡ Traitement asynchrone** : BullMQ avec worker dédié
+### ✅ Fonctionnalités Administrateur
+- **👑 Gestion utilisateurs** : Promotion/rétrogradation des rôles utilisateurs
+- **🔍 Impersonation** : Connexion en tant qu'utilisateur pour support/debug
+- **📊 Tableau de bord** : Statistiques système et monitoring
+- **🔧 Configuration** : Gestion des paramètres système
+
+### ✅ Architecture Technique Robuste
+- **🔐 Authentification sécurisée** : Middleware avec rôles utilisateurs (USER/ADMIN)
+- **🗄️ Base de données** : Prisma ORM avec PostgreSQL (schéma optimisé)
+- **⚡ Traitement asynchrone** : BullMQ avec worker dédié et suivi en temps réel
 - **🎨 Interface moderne** : Next.js 14 + Tailwind CSS + shadcn/ui
-- **🧪 Tests complets** : Vitest (unitaires) + Playwright (e2e)
+- **📱 Responsive design** : Interface adaptée mobile et desktop
+- **🔔 Feedback utilisateur** : Notifications toast et états de chargement
+- **🧪 Tests automatisés** : Playwright (e2e) et Vitest (unitaires)
 
 ## 🏗️ Architecture
 
@@ -119,41 +131,47 @@ npm run worker:dev
 - **Utilisateur normal** : Créer un compte ou utiliser les identifiants fournis
 - **Administrateur** : `admin@pmp.local` / `admin123`
 
-### 📸 Workflow Utilisateur
+### 📸 Workflow Utilisateur Complet
 
 1. **Galerie** (`/gallery`)
-   - Créer une galerie
-   - Uploader des images
-   - Attendre le traitement automatique (thumbnails, previews)
+   - Créer une galerie personnalisée
+   - Uploader des images (formats supportés : JPG, PNG, WebP, MP4)
+   - Traitement automatique : génération des miniatures et prévisualisations
+   - **Feedback visuel** : Barre de progression et notifications toast
 
 2. **Recadrage** (`/crop`)
-   - Sélectionner des images
-   - Utiliser les outils de recadrage
-   - Appliquer des transformations
+   - Sélectionner des images depuis la galerie
+   - Outils avancés : recadrage manuel, automatique (IA), formats Instagram
+   - Transformations : rotation, barres, split, ratios prédéfinis
+   - **Suivi en temps réel** : Notifications automatiques de fin de traitement
 
 3. **Description** (`/description`)
-   - Ajouter des métadonnées complètes
-   - Définir titre, description, tags, texte alternatif
+   - Ajouter des métadonnées complètes à chaque image
+   - Champs disponibles : titre, description, tags, texte alternatif, légende
+   - **Sauvegarde automatique** avec validation des données
 
 4. **Tri** (`/sort`)
-   - Créer des publications
-   - Organiser les images par drag & drop
-   - Définir l'ordre d'affichage
+   - Créer des publications thématiques
+   - Organiser les images par glisser-déposer
+   - Définir l'ordre d'affichage définitif
+   - **Persistance** : Ordre sauvegardé en base de données
 
 5. **Calendrier** (`/calendar`)
-   - Planifier les publications
-   - Glisser les publications sur les dates souhaitées
+   - Planifier les publications dans le temps
+   - Interface calendrier interactive avec drag & drop
+   - Gestion des dates de publication automatiques
 
-6. **Export** (`/calendar`)
+6. **Export** (`/publication`)
    - Sélectionner les publications à exporter
-   - Télécharger l'archive ZIP avec métadonnées
+   - Génération automatique de ZIP avec métadonnées
+   - **Suivi des jobs** : Notifications de début et fin d'export
 
 ### 👑 Interface Administrateur (`/admin`)
 
-- **Tableau de bord** : Statistiques et activité système
-- **Gestion utilisateurs** : Promouvoir/rétrograder des utilisateurs
-- **Impersonation** : Se connecter en tant qu'un utilisateur
-- **Santé du système** : Monitoring CPU, mémoire, stockage
+- **Tableau de bord** : Statistiques système, activité récente, métriques
+- **Gestion utilisateurs** : Liste complète, modification des rôles, activation/désactivation
+- **Impersonation sécurisée** : Connexion en tant qu'utilisateur pour support technique
+- **Monitoring système** : État des services, utilisation ressources, logs
 
 ## 🧪 Tests
 

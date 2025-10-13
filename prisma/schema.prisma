@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,7 +16,6 @@ model User {
   name      String?
   password  String
   role      Role     @default(USER)
-  preferences Json?   // Préférences utilisateur (thème, langue, notifications, etc.)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -24,11 +23,28 @@ model User {
   jobs        Job[]
   galleries   Gallery[]
   images      Image[]
+  videos      Video[]
   publications Publication[]
   sessions    Session[]
   accounts    Account[]
+  preferences UserPreferences?
 
   @@map("users")
+}
+
+// Interface pour les préférences utilisateur (pour la validation TypeScript)
+model UserPreferences {
+  theme         String? @default("light")
+  language      String? @default("fr")
+  notifications Boolean? @default(true)
+  autoSave      Boolean? @default(true)
+  itemsPerPage  Int?     @default(20)
+
+  // Relations
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
 
 model Job {
@@ -62,6 +78,7 @@ model Gallery {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   images      Image[]
+  videos      Video[]
 
   @@map("galleries")
 }
@@ -112,6 +129,53 @@ model ImageVariant {
   // Note: L'utilisateur est accessible via image.user, pas besoin de relation directe
 
   @@map("image_variants")
+}
+
+model Video {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  path         String
+  size         Int
+  mimeType     String
+  width        Int?
+  height       Int?
+  duration     Int?     // Durée en secondes
+  title        String?
+  description  String?
+  tags         String?
+  thumbnailPath String? // Chemin vers la miniature générée
+  previewPath  String?  // Chemin vers l'aperçu généré
+  uploadedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  galleryId    String?
+  gallery      Gallery? @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  variants     VideoVariant[] // <--- AJOUTER CETTE LIGNE
+
+  @@map("videos")
+}
+
+model VideoVariant {
+  id          String   @id @default(cuid())
+  filename    String
+  path        String
+  width       Int?
+  height      Int?
+  size        Int
+  mimeType    String
+  variantType String   // 'process', 'thumbnail', 'preview', etc.
+  parameters  Json?    // Paramètres utilisés pour créer cette variante
+  createdAt   DateTime @default(now())
+
+  // Relations
+  videoId     String
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("video_variants")
 }
 
 model Publication {

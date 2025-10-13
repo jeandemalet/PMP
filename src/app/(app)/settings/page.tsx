@@ -4,19 +4,19 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { notifications } from '@/lib/notifications';
+import { SettingsSkeleton } from '@/components/ui/skeletons/SettingsSkeleton';
+import { Icon } from '@/components/ui/Icon';
 
-// Interface personnalisée pour éviter les conflits de types Prisma
-interface User {
-  id: string;
-  email: string;
-  name: string | null;
-  role: 'USER' | 'ADMIN';
-  preferences: {
-    theme?: 'light' | 'dark' | 'auto';
-    language?: 'fr' | 'en' | 'es';
-    notifications?: boolean;
-  } | null;
-  createdAt: string;
+// Interface pour les préférences utilisateur depuis l'API
+interface UserPreferences {
+  theme?: 'light' | 'dark' | 'auto';
+  language?: 'fr' | 'en' | 'es' | 'de';
+  notifications?: boolean;
+  autoSave?: boolean;
+  itemsPerPage?: number;
+  timezone?: string;
+  dateFormat?: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  timeFormat?: '12h' | '24h';
 }
 
 export default function SettingsPage() {
@@ -27,25 +27,51 @@ export default function SettingsPage() {
     name: '',
     email: '',
   });
-  const [preferences, setPreferences] = useState({
-    theme: 'auto' as 'light' | 'dark' | 'auto',
-    language: 'fr' as 'fr' | 'en' | 'es',
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    theme: 'auto',
+    language: 'fr',
     notifications: true,
   });
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-      });
-      setPreferences({
-        theme: (user as any).preferences?.theme || 'auto',
-        language: (user as any).preferences?.language || 'fr',
-        notifications: (user as any).preferences?.notifications ?? true,
-      });
-      setIsLoading(false);
-    }
+    const loadPreferences = async () => {
+      if (isAuthenticated && user) {
+        try {
+          // Récupérer les préférences depuis l'API dédiée
+          const response = await fetch('/api/me/preferences');
+          if (response.ok) {
+            const data = await response.json();
+            setPreferences(data.preferences || {
+              theme: 'light',
+              language: 'fr',
+              notifications: true,
+            });
+          } else {
+            console.warn('Impossible de charger les préférences, utilisation des valeurs par défaut');
+            setPreferences({
+              theme: 'light',
+              language: 'fr',
+              notifications: true,
+            });
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des préférences:', error);
+          setPreferences({
+            theme: 'light',
+            language: 'fr',
+            notifications: true,
+          });
+        }
+
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+        });
+        setIsLoading(false);
+      }
+    };
+
+    loadPreferences();
   }, [isAuthenticated, user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,25 +87,43 @@ export default function SettingsPage() {
     setIsSaving(true);
 
     try {
-      const response = await fetch('/api/auth/me', {
+      // Mettre à jour le profil utilisateur (nom, email) via l'API auth/me
+      if (formData.name || formData.email) {
+        const profileResponse = await fetch('/api/auth/me', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!profileResponse.ok) {
+          const error = await profileResponse.json();
+          notifications.error(`Erreur lors de la mise à jour du profil: ${error.error}`);
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Mettre à jour les préférences utilisateur
+      const preferencesResponse = await fetch('/api/me/preferences', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          preferences,
-        }),
+        body: JSON.stringify(preferences),
       });
 
-      if (response.ok) {
-        notifications.success('Paramètres mis à jour avec succès !');
-        // Recharger les données utilisateur
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        notifications.error(`Erreur lors de la mise à jour: ${error.error}`);
+      if (!preferencesResponse.ok) {
+        const error = await preferencesResponse.json();
+        notifications.error(`Erreur lors de la mise à jour des préférences: ${error.error}`);
+        setIsSaving(false);
+        return;
       }
+
+      notifications.success('Profil et paramètres mis à jour avec succès !');
+      // Recharger les données utilisateur de manière propre
+      window.location.reload();
     } catch (error) {
       console.error('Erreur de connexion:', error);
       notifications.error('Erreur de connexion lors de la mise à jour');
@@ -111,21 +155,14 @@ export default function SettingsPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <SettingsSkeleton />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
@@ -137,7 +174,7 @@ export default function SettingsPage() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Profil utilisateur */}
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
@@ -202,7 +239,8 @@ export default function SettingsPage() {
                     ? 'bg-purple-100 text-purple-800'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
-                  {user?.role === 'ADMIN' ? '👑 Administrateur' : '👤 Utilisateur'}
+                  <Icon name={user?.role === 'ADMIN' ? 'admin' : 'profile'} size={12} className="mr-1" />
+                  {user?.role === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}
                 </span>
               </div>
 

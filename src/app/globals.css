@@ -6,6 +6,13 @@
   * {
     @apply border-gray-200;
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+  }
+
   body {
     @apply bg-white text-gray-900;
   }

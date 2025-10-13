@@ -1,0 +1,56 @@
+# Gérer automatiquement les fins de ligne pour les fichiers texte
+* text=auto
+
+# Forcer les fins de ligne LF pour les fichiers qui en ont besoin
+*.sh    text eol=lf
+*.js    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.prisma text eol=lf
+
+# Indiquer que ces fichiers sont binaires et ne doivent pas être modifiés
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.svg   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.mp4   binary
+*.webm  binary
+*.avi   binary
+*.mov   binary
+*.zip   binary
+*.tar   binary
+*.gz    binary
+*.bz2   binary
+*.xz    binary
+*.7z    binary
+*.pdf   binary
+*.doc   binary
+*.docx  binary
+*.xls   binary
+*.xlsx  binary
+*.ppt   binary
+*.pptx  binary
+
+# Fichiers de configuration spécifiques
+Dockerfile* text eol=lf
+docker-compose*.yml text eol=lf
+docker-compose*.yaml text eol=lf
+
+# Fichiers de développement
+.gitignore text eol=lf
+.prettierrc* text eol=lf
+.eslintrc* text eol=lf

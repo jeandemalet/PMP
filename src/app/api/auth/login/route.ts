@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
+import { tokenManager } from '@/lib/token-manager';
+import { authLogger, errorLogger } from '@/lib/logger';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -10,9 +12,12 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  let email = '';
+
   try {
     const body = await request.json();
-    const { email, password } = loginSchema.parse(body);
+    const { email: emailAddress, password } = loginSchema.parse(body);
+    email = emailAddress; // Stocker l'email pour les logs d'erreur
 
     // Trouver l'utilisateur
     const user = await prisma.user.findUnique({
@@ -44,16 +49,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Créer le token JWT
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    );
+    // Créer le token JWT avec durée de vie réduite (1 heure)
+    const token = tokenManager.generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     // Créer la réponse avec le token dans un cookie sécurisé
     const response = NextResponse.json(
@@ -72,24 +73,21 @@ export async function POST(request: NextRequest) {
     // Définir le cookie avec le token
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: false, // false en développement (localhost)
-      sameSite: 'lax', // Plus permissif pour le développement
+      secure: process.env.NODE_ENV === 'production', // true en production, false en développement
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Plus strict en production
       maxAge: 60 * 60 * 24 * 7, // 7 jours
       path: '/',
     });
 
-    console.log('🔐 Login successful - Cookie set:', {
-      tokenLength: token.length,
+    // Logger structuré pour l'authentification réussie
+    authLogger.info({
       userId: user.id,
-      cookieName: 'auth-token',
-      cookieOptions: {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-        path: '/',
-      }
-    });
+      email: user.email,
+      role: user.role,
+      tokenLength: token.length,
+      cookieMaxAge: 60 * 60 * 24 * 7,
+      environment: process.env.NODE_ENV,
+    }, 'User login successful, authentication token generated');
 
     return response;
   } catch (error) {
@@ -100,7 +98,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Erreur lors de la connexion:', error);
+    // Logger structuré pour les erreurs d'authentification
+    errorLogger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      email: email, // Utiliser la variable email déclarée plus haut
+      userAgent: request.headers.get('user-agent'),
+      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+    }, 'Authentication error occurred');
+
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

@@ -76,10 +76,15 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
     // Nombre maximum d'uploads simultanés
     const MAX_CONCURRENT_UPLOADS = 3;
 
+    // Séparer les fichiers par type
+    const imageFiles = selectedFiles.filter(file => file.type.startsWith('image/'));
+    const videoFiles = selectedFiles.filter(file => file.type.startsWith('video/'));
+
     // Diviser les fichiers en groupes pour l'upload parallélisé
+    const allFiles = [...imageFiles, ...videoFiles];
     const fileGroups = [];
-    for (let i = 0; i < selectedFiles.length; i += MAX_CONCURRENT_UPLOADS) {
-      fileGroups.push(selectedFiles.slice(i, i + MAX_CONCURRENT_UPLOADS));
+    for (let i = 0; i < allFiles.length; i += MAX_CONCURRENT_UPLOADS) {
+      fileGroups.push(allFiles.slice(i, i + MAX_CONCURRENT_UPLOADS));
     }
 
     // Traiter chaque groupe en parallèle
@@ -92,7 +97,11 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
           formData.append('file', file);
           formData.append('galleryId', selectedGalleryId);
 
-          const response = await fetch('/api/upload', {
+          // Déterminer la route d'upload en fonction du type de fichier
+          const isVideo = file.type.startsWith('video/');
+          const uploadUrl = isVideo ? '/api/upload/video' : '/api/upload';
+
+          const response = await fetch(uploadUrl, {
             method: 'POST',
             body: formData,
           });
@@ -177,7 +186,11 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
           formData.append('file', file);
           formData.append('galleryId', selectedGalleryId);
 
-          const response = await fetch('/api/upload', {
+          // Déterminer la route d'upload en fonction du type de fichier
+          const isVideo = file.type.startsWith('video/');
+          const uploadUrl = isVideo ? '/api/upload/video' : '/api/upload';
+
+          const response = await fetch(uploadUrl, {
             method: 'POST',
             body: formData,
           });
@@ -236,7 +249,7 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
               ref={fileInputRef}
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,video/*"
               onChange={handleFileSelect}
               className="hidden"
               disabled={isUploading}
@@ -250,7 +263,7 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
                   </svg>
                 </div>
                 <p className="text-lg font-medium text-gray-900 mb-2">
-                  Glissez vos images ici
+                  Glissez vos images et vidéos ici
                 </p>
                 <p className="text-sm text-gray-600 mb-4">
                   ou
@@ -340,7 +353,7 @@ export function UploadDialog({ galleries, onClose, onUploadSuccess, selectedGall
                 {hasErrors && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm font-medium text-red-800 mb-2">
-                      Certaines images n'ont pas pu être uploadées :
+                      Certains fichiers n'ont pas pu être uploadés :
                     </p>
                     <div className="space-y-1">
                       {Object.entries(uploadResults)

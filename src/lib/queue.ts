@@ -1,16 +1,52 @@
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
-// Configuration Redis
+// Configuration Redis - Activée pour la production
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
 });
 
-// File d'attente pour le traitement des images (utilise le système worker externe)
-export const imageQueue = new Queue('image-processing', { connection });
+// File d'attente pour le traitement des images - Connexion Redis active
+export const imageQueue = new Queue('image-processing', {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+    removeOnComplete: 100,
+    removeOnFail: 50,
+  },
+});
 
-// File d'attente pour la création de ZIP (utilise le système worker externe)
-export const zipQueue = new Queue('zip-creation', { connection });
+// File d'attente pour la création de ZIP - Connexion Redis active
+export const zipQueue = new Queue('zip-creation', {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+    removeOnComplete: 50,
+    removeOnFail: 20,
+  },
+});
+
+// File d'attente pour le traitement vidéo - Connexion Redis active
+export const videoQueue = new Queue('video-processing', {
+  connection,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+    removeOnComplete: 20,
+    removeOnFail: 10,
+  },
+});
 
 // Types des données de job - alignés avec le système worker réel
 export interface ImageProcessingData {
@@ -73,16 +109,30 @@ export const addZipCreationJob = async (data: ZipCreationData) => {
   });
 };
 
+// Fonction utilitaire pour ajouter un job de traitement vidéo
+export const addVideoProcessingJob = async (data: any) => {
+  return await videoQueue.add('process-video', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+};
+
 // Fermeture propre des connexions
 process.on('SIGTERM', async () => {
   await imageQueue.close();
   await zipQueue.close();
+  await videoQueue.close();
   connection.disconnect();
 });
 
 export default {
   imageQueue,
   zipQueue,
+  videoQueue,
   addImageProcessingJob,
   addZipCreationJob,
+  addVideoProcessingJob,
 };

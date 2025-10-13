@@ -32,10 +32,11 @@ export default function CropPage() {
   const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const imageId = searchParams.get('imageId');
+  const galleryId = searchParams.get('galleryId'); // <-- NOUVEAU
   const queryClient = useQueryClient();
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [cropArea, setCropArea] = useState<CropArea>({ x: 0, y: 0, width: 200, height: 200 });
+  const [cropAreas, setCropAreas] = useState<Record<string, CropArea>>({});
   const [cropMode, setCropMode] = useState<'manual' | 'auto'>('manual');
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
@@ -55,6 +56,16 @@ export default function CropPage() {
     }
   });
 
+  // Afficher automatiquement les notifications basées sur l'état du job
+  useEffect(() => {
+    if (isCompleted && jobStatus) {
+      notifications.success(`Job terminé avec succès !`);
+    }
+    if (isFailed && jobStatus?.error) {
+      notifications.error(`Échec du job: ${jobStatus.error}`);
+    }
+  }, [isCompleted, isFailed, jobStatus]);
+
   // Récupérer les données de l'image actuelle pour obtenir le galleryId
   const { data: currentImageData, isLoading: isLoadingCurrentImage } = useQuery({
     queryKey: ['current-image', imageId],
@@ -69,14 +80,14 @@ export default function CropPage() {
 
   // Récupérer les images de la galerie avec TanStack Query
   const { data: galleryData, isLoading: isLoadingGallery } = useQuery({
-    queryKey: ['gallery-images', currentImageData?.image?.galleryId],
+    queryKey: ['gallery-images', galleryId],
     queryFn: async () => {
-      if (!currentImageData?.image?.galleryId) throw new Error('No gallery ID available');
-      const response = await fetch(`/api/images?galleryId=${currentImageData.image.galleryId}&page=1&limit=50`);
+      if (!galleryId) throw new Error('No gallery ID available');
+      const response = await fetch(`/api/images?galleryId=${galleryId}&page=1&limit=50`);
       if (!response.ok) throw new Error('Failed to fetch gallery images');
       return response.json();
     },
-    enabled: !!currentImageData?.image?.galleryId && isAuthenticated,
+    enabled: !!galleryId && isAuthenticated,
   });
 
   // Mettre à jour les images et l'index quand les données changent
@@ -91,6 +102,18 @@ export default function CropPage() {
   const images = galleryData?.images || [];
   const currentImage = images[currentImageIndex];
   const isLoading = isLoadingCurrentImage || isLoadingGallery;
+
+  // Obtenir la zone de recadrage pour l'image actuelle, ou une valeur par défaut
+  const currentCropArea = cropAreas[currentImage?.id] || { x: 0, y: 0, width: 200, height: 200 };
+
+  // Créer une fonction pour mettre à jour la zone de recadrage
+  const handleCropAreaChange = (newArea: CropArea) => {
+    if (!currentImage) return;
+    setCropAreas(prev => ({
+      ...prev,
+      [currentImage.id]: newArea,
+    }));
+  };
 
 
 
@@ -143,7 +166,7 @@ export default function CropPage() {
         },
         body: JSON.stringify({
           imageId: currentImage.id,
-          cropArea,
+          cropArea: currentCropArea,
           rotation: 0,
           flipHorizontal: false,
           flipVertical: false,
@@ -174,26 +197,26 @@ export default function CropPage() {
     switch (tool) {
       case 'bars':
         // Ajouter des barres blanches autour de la zone de recadrage
-        setCropArea(prev => ({
-          ...prev,
-          x: Math.max(0, prev.x - 20),
-          y: Math.max(0, prev.y - 20),
-          width: Math.min(width, prev.width + 40),
-          height: Math.min(height, prev.height + 40),
-        }));
+        handleCropAreaChange({
+          ...currentCropArea,
+          x: Math.max(0, currentCropArea.x - 20),
+          y: Math.max(0, currentCropArea.y - 20),
+          width: Math.min(width, currentCropArea.width + 40),
+          height: Math.min(height, currentCropArea.height + 40),
+        });
         break;
       case 'split':
         // Diviser l'image en deux parties égales
         const isHorizontal = width > height;
         if (isHorizontal) {
-          setCropArea({
+          handleCropAreaChange({
             x: 0,
             y: 0,
             width: Math.floor(width / 2),
             height: height,
           });
         } else {
-          setCropArea({
+          handleCropAreaChange({
             x: 0,
             y: 0,
             width: width,
@@ -203,12 +226,12 @@ export default function CropPage() {
         break;
       case 'rotate':
         // Rotation de 90° de la zone de recadrage
-        setCropArea(prev => ({
-          x: prev.y,
-          y: width - prev.x - prev.width,
-          width: prev.height,
-          height: prev.width,
-        }));
+        handleCropAreaChange({
+          x: currentCropArea.y,
+          y: width - currentCropArea.x - currentCropArea.width,
+          width: currentCropArea.height,
+          height: currentCropArea.width,
+        });
         break;
       case 'ai':
         // Recadrage automatique avec SmartCrop - API call
@@ -222,24 +245,39 @@ export default function CropPage() {
     if (!currentImage.width || !currentImage.height) return;
 
     const [widthRatio, heightRatio] = ratio.split(':').map(Number);
-    const imageAspectRatio = currentImage.width / currentImage.height;
     const targetAspectRatio = widthRatio / heightRatio;
+
+    // Conserver le centre de la zone de recadrage actuelle
+    const currentCenterX = currentCropArea.x + currentCropArea.width / 2;
+    const currentCenterY = currentCropArea.y + currentCropArea.height / 2;
 
     let cropWidth, cropHeight;
 
-    if (targetAspectRatio > imageAspectRatio) {
-      // Ratio plus large que l'image, ajuster la hauteur
-      cropHeight = currentImage.height;
+    // Calculer les dimensions en préservant le centre actuel
+    const maxWidth = currentImage.width;
+    const maxHeight = currentImage.height;
+
+    // Commencer avec la largeur maximale possible
+    cropWidth = Math.min(maxWidth, currentCropArea.width);
+    cropHeight = cropWidth / targetAspectRatio;
+
+    // Si la hauteur dépasse l'image, ajuster en partant de la hauteur
+    if (cropHeight > maxHeight) {
+      cropHeight = Math.min(maxHeight, currentCropArea.height);
       cropWidth = cropHeight * targetAspectRatio;
-    } else {
-      // Ratio plus haut que l'image, ajuster la largeur
-      cropWidth = currentImage.width;
-      cropHeight = cropWidth / targetAspectRatio;
     }
 
-    setCropArea({
-      x: Math.floor((currentImage.width - cropWidth) / 2),
-      y: Math.floor((currentImage.height - cropHeight) / 2),
+    // S'assurer que les dimensions ne dépassent pas l'image
+    cropWidth = Math.min(cropWidth, maxWidth);
+    cropHeight = Math.min(cropHeight, maxHeight);
+
+    // Centrer sur le centre actuel préservé
+    const newX = Math.max(0, Math.min(currentCenterX - cropWidth / 2, maxWidth - cropWidth));
+    const newY = Math.max(0, Math.min(currentCenterY - cropHeight / 2, maxHeight - cropHeight));
+
+    handleCropAreaChange({
+      x: Math.floor(newX),
+      y: Math.floor(newY),
       width: Math.floor(cropWidth),
       height: Math.floor(cropHeight),
     });
@@ -317,7 +355,7 @@ export default function CropPage() {
   return (
     <>
       {/* Navigation d'images - maintenant dans le contenu principal */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">
@@ -355,7 +393,7 @@ export default function CropPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-12rem)]">
           {/* Toolbar - Pleine largeur sur mobile, colonne sur desktop */}
           <div className="lg:col-span-3 order-2 lg:order-1">
@@ -374,8 +412,8 @@ export default function CropPage() {
           <div className="lg:col-span-6 order-1 lg:order-2">
             <CropCanvas
               image={currentImage}
-              cropArea={cropArea}
-              onCropAreaChange={setCropArea}
+              cropArea={currentCropArea}
+              onCropAreaChange={handleCropAreaChange}
               cropMode={cropMode}
             />
           </div>

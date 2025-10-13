@@ -42,7 +42,7 @@ Droite : Photo de profil, Icône engrenage ⚙️.
 3	Recadrage	Recadrage automatique et manuel des photos.
 4	Description	Ajout de titres, tags, légendes, métadonnées.
 5	Calendrier	Planification des publications.
-6	Publication	Validation et export.
+6	Prévisualisation	Simulation du feed Instagram pour valider l'agencement visuel des publications planifiées.
 👑 Interface Administrateur
 
 Accessible via une route protégée (/admin), avec une interface distincte.
@@ -109,7 +109,7 @@ tri.png	tabSort	Onglet "Tri".
 crop.png	tabCrop	Onglet "Recadrage".
 description.png	tabDescription	Onglet "Description".
 calendar.png	tabCalendar	Onglet "Calendrier".
-publish.png	tabPublish	Onglet "Publication".
+preview.svg	tabPreview	Onglet "Prévisualisation".
 Icônes de Recadrage		
 recadrageindividuel.png	cropManual	Toggle pour le mode "Recadrage manuel".
 ai.png	cropAuto	Toggle pour le mode "Recadrage automatique" (SmartCrop).
@@ -183,11 +183,35 @@ Objectif : Réorganisation fluide des images.
 
 Persistance : Met à jour PublicationImage.position via un appel API.
 
-🗓️ Calendrier & Export
+🗓️ Calendrier & Planification
 
-Couleurs par galerie : Palette de couleurs dynamique.
+Objectif : Organiser les publications dans le temps.
 
-Téléchargement : Bouton (download) pour générer un ZIP via un job asynchrone.
+Interface : Vue mensuelle/hebdomadaire, drag-and-drop des publications depuis une sidebar.
+
+Fonctionnalités Clés :
+
+Glisser-déposer pour planifier une date.
+
+Glisser-déposer une publication du calendrier vers la sidebar pour la dé-planifier.
+
+Sélecteur de date (DatePicker) pour une planification à long terme.
+
+Popover au survol/clic pour un aperçu rapide du contenu d'une publication.
+
+📦 Export & Téléchargement
+
+Objectif : Générer et télécharger des archives ZIP contenant les images et leurs métadonnées.
+
+Déclenchement : L'action d'export est un processus asynchrone initié par l'utilisateur, pas un onglet dédié.
+
+Points d'Accès dans l'UI :
+
+Page Calendrier : Un bouton "Exporter les publications planifiées" (handleExportAll).
+
+Page Tri : Un bouton "Exporter cette publication" pour la publication sélectionnée.
+
+Fonctionnement : Déclenche un job ZIP_CREATE dans le worker. L'utilisateur est notifié lorsque l'archive est prête à être téléchargée.
 
 🚀 Mises à Jour & Maintenance (Stratégie Zéro Downtime)
 

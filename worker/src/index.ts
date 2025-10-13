@@ -4,6 +4,7 @@ import IORedis from 'ioredis'
 import { PrismaClient } from '@prisma/client'
 import { imageProcessor, ImageProcessingData } from './processors/imageProcessor'
 import { zipProcessor } from './processors/zipProcessor'
+import { processVideo, VideoProcessingData } from './processors/videoProcessor'
 
 // Interface pour les données du smart crop
 interface SmartCropData {
@@ -31,6 +32,15 @@ const imageWorker = new Worker(
     console.log(`Processing image ${imageId} for user ${userId}`)
 
     try {
+      // CRITIQUE: Mettre à jour le statut à PROCESSING dès le début
+      const prismaJobId = (job as any).data?.prismaJobId;
+      if (prismaJobId) {
+        await prisma.job.update({
+          where: { id: prismaJobId },
+          data: { status: 'PROCESSING', startedAt: new Date() },
+        });
+      }
+
       // Update job status if we have a variantId (new system)
       if (variantId) {
         await prisma.imageVariant.update({
@@ -86,6 +96,15 @@ const zipWorker = new Worker(
     console.log(`Creating ZIP for ${imageIds.length} images`)
 
     try {
+      // CRITIQUE: Mettre à jour le statut à PROCESSING dès le début
+      const prismaJobId = (job as any).data?.prismaJobId;
+      if (prismaJobId) {
+        await prisma.job.update({
+          where: { id: prismaJobId },
+          data: { status: 'PROCESSING', startedAt: new Date() },
+        });
+      }
+
       const result = await zipProcessor.process({
         imageIds,
         archiveName
@@ -114,6 +133,15 @@ const smartCropWorker = new Worker(
     console.log(`Smart cropping image ${imageId} to ${targetWidth}x${targetHeight}`)
 
     try {
+      // CRITIQUE: Mettre à jour le statut à PROCESSING dès le début
+      const prismaJobId = (job as any).data?.prismaJobId;
+      if (prismaJobId) {
+        await prisma.job.update({
+          where: { id: prismaJobId },
+          data: { status: 'PROCESSING', startedAt: new Date() },
+        });
+      }
+
       // Use the smartCrop function from imageProcessor
       const result = await imageProcessor.smartCrop(
         imageId,
@@ -262,7 +290,101 @@ process.on('SIGINT', async () => {
   process.exit(0)
 })
 
+// Create worker for video processing
+const videoWorker = new Worker(
+  'video-processing',
+  async (job: Job<VideoProcessingData>) => {
+    const { videoId, userId, operations } = job.data
+
+    console.log(`Processing video ${videoId} for user ${userId}`)
+
+    try {
+      // CRITIQUE: Mettre à jour le statut à PROCESSING dès le début
+      const prismaJobId = (job as any).data?.prismaJobId;
+      if (prismaJobId) {
+        await prisma.job.update({
+          where: { id: prismaJobId },
+          data: { status: 'PROCESSING', startedAt: new Date() },
+        });
+      }
+
+      // Process the video with FFmpeg
+      const result = await processVideo({
+        videoId,
+        userId,
+        operations
+      })
+
+      console.log(`Video processing completed for ${videoId}`)
+      return result
+
+    } catch (error) {
+      console.error(`Video processing failed for ${videoId}:`, error)
+      throw error
+    }
+  },
+  {
+    connection: redis,
+    concurrency: 1, // One at a time for video processing (resource intensive)
+  }
+)
+
+// Event listeners for video worker
+videoWorker.on('completed', (job: Job<VideoProcessingData> | undefined) => {
+  console.log(`Video processing job ${job?.id} completed`)
+})
+
+videoWorker.on('failed', async (job: Job<VideoProcessingData> | undefined, err) => {
+  console.error(`Video processing job ${job?.id} failed:`, err.message)
+
+  // Mettre à jour le statut dans la base de données Prisma
+  try {
+    // Récupérer l'ID du job Prisma depuis les données du job BullMQ
+    const prismaJobId = (job as any)?.data?.prismaJobId;
+
+    if (prismaJobId) {
+      // Mettre à jour le job spécifique qui a échoué
+      await prisma.job.update({
+        where: { id: prismaJobId },
+        data: {
+          status: 'FAILED',
+          error: err.message,
+          completedAt: new Date()
+        }
+      });
+    } else {
+      console.warn('Aucun ID de job Prisma trouvé dans les données du job vidéo BullMQ');
+    }
+  } catch (updateError) {
+    console.error('Erreur lors de la mise à jour du statut vidéo en BDD:', updateError);
+  }
+})
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Shutting down workers...')
+  await imageWorker.close()
+  await zipWorker.close()
+  await smartCropWorker.close()
+  await videoWorker.close()
+  await redis.quit()
+  await prisma.$disconnect()
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  console.log('Shutting down workers...')
+  await imageWorker.close()
+  await zipWorker.close()
+  await smartCropWorker.close()
+  await videoWorker.close()
+  await redis.quit()
+  await prisma.$disconnect()
+  process.exit(0)
+})
+
 console.log('PMP Worker started with BullMQ...')
 console.log('- Image processing worker: active')
 console.log('- Zip creation worker: active')
 console.log('- Smart crop worker: active')
+console.log('- Video processing worker: active')

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { authLogger } from '@/lib/logger';
 
 // GET /api/admin/users - Récupérer tous les utilisateurs
 export async function GET(request: NextRequest) {
+  let userId = '';
+
   try {
     // Récupérer l'ID utilisateur depuis les headers (ajouté par le middleware)
-    const userId = request.headers.get('x-user-id');
+    userId = request.headers.get('x-user-id') || '';
 
     if (!userId) {
       return NextResponse.json(
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Récupérer tous les utilisateurs avec leurs statistiques
+    // Récupérer tous les utilisateurs avec leurs statistiques et stockage
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -42,15 +45,49 @@ export async function GET(request: NextRequest) {
             publications: true,
           },
         },
+        // Inclure les images pour calculer le stockage total
+        images: {
+          select: {
+            size: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json({ users }, { status: 200 });
+    // Calculer le stockage total pour chaque utilisateur
+    const usersWithStorage = users.map(user => {
+      const totalStorage = user.images.reduce((sum, image) => sum + image.size, 0);
+      const { images, ...userWithoutImages } = user; // Exclure les détails des images
+
+      return {
+        ...userWithoutImages,
+        totalStorage,
+        _count: {
+          ...userWithoutImages._count,
+          images: user.images.length, // Conserver le nombre d'images
+        },
+      };
+    });
+
+    // Logger structuré pour l'accès admin
+    authLogger.info({
+      adminUserId: userId,
+      adminEmail: request.headers.get('x-user-email'),
+      usersCount: usersWithStorage.length,
+    }, 'Admin accessed users list with storage statistics');
+
+    return NextResponse.json({ users: usersWithStorage }, { status: 200 });
   } catch (error) {
-    console.error('Erreur lors de la récupération des utilisateurs:', error);
+    authLogger.error({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      adminUserId: userId,
+      userAgent: request.headers.get('user-agent'),
+    }, 'Failed to retrieve users list for admin');
+
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
